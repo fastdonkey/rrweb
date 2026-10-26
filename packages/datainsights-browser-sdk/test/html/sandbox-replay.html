@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>DataInsights Sandboxed Replay Test</title>
+    <script src="/rrweb.js"></script>
+  </head>
+  <body>
+    <p id="gap-warning" role="alert"></p>
+    <div id="replay-root"></div>
+    <script>
+      window.__REPLAY_READY__ = false;
+      window.__REPLAY_SCRIPT_EXECUTED__ = false;
+
+      async function loadReplay() {
+        const params = new URLSearchParams(location.search);
+        const fixtureName = params.get('fixture') || 'replay-segments';
+        const fixture = await fetch(`/${fixtureName}.json`).then((response) =>
+          response.json(),
+        );
+        const segment = fixture.recordings
+          ? fixture.recordings[0].segments[Number(params.get('segment') || 0)]
+          : fixture;
+        if (segment.missingSequenceRanges?.length) {
+          document.querySelector('#gap-warning').textContent =
+            '警告：当前回放存在事件缺口';
+        }
+        const replayer = new rrweb.Replayer(segment.events, {
+          root: document.querySelector('#replay-root'),
+          showWarning: false,
+          showDebug: false,
+        });
+        replayer.on(rrweb.ReplayerEvents.FullsnapshotRebuilded, () => {
+          window.__REPLAY_READY__ = true;
+        });
+        replayer.play(0);
+      }
+
+      loadReplay().catch((error) => {
+        window.__REPLAY_ERROR__ = String(error);
+      });
+    </script>
+  </body>
+</html>

@@ -44,3 +44,14 @@ connect-src 'self' https://ingest.example.com;
 ```
 
 Worker 加载失败时 SDK 使用等价的同步序列化降级路径。不要依赖 `blob:` Worker，也不要把 `latest` URL 用于生产。
+
+## 录制与回放对象边界
+
+| 对象                    | 所属层             | 职责                                                                |
+| ----------------------- | ------------------ | ------------------------------------------------------------------- |
+| Journal Chunk           | SDK 本地持久化     | 以 1 秒或 20 事件为窗口缩小崩溃损失，不是网络或回放协议             |
+| RecordingBatch          | SDK 投递协议       | 携带连续 sequence、稳定 batchId、内容哈希和原始 rrweb 事件          |
+| RecordingSegment        | SDK 录制生命周期   | 30 分钟连续录制切段；保持 sessionId/recordingId，并以全量快照开始   |
+| Replay Chunk / Manifest | 后续服务端与播放器 | 面向对象存储、范围读取、播放器索引和生命周期管理；不在 DI-1001 实现 |
+
+`examples/local-replay` 仅用于验证 fixture 的 Sandboxed Rebuild，不是生产播放器。所有 Replay 数据均视为不可信输入；iframe 必须保持精确的 `sandbox="allow-same-origin"`，不得增加 `allow-scripts`。

@@ -1,0 +1,79 @@
+{
+  "segmentId": "malicious-segment",
+  "events": [
+    {
+      "type": 4,
+      "data": {
+        "href": "https://attacker.invalid/",
+        "width": 800,
+        "height": 600
+      },
+      "timestamp": 2000
+    },
+    {
+      "type": 2,
+      "data": {
+        "node": {
+          "id": 1,
+          "type": 0,
+          "childNodes": [
+            {
+              "id": 2,
+              "name": "html",
+              "type": 1,
+              "publicId": "",
+              "systemId": ""
+            },
+            {
+              "id": 3,
+              "type": 2,
+              "tagName": "html",
+              "attributes": {},
+              "childNodes": [
+                {
+                  "id": 4,
+                  "type": 2,
+                  "tagName": "head",
+                  "attributes": {},
+                  "childNodes": []
+                },
+                {
+                  "id": 5,
+                  "type": 2,
+                  "tagName": "body",
+                  "attributes": {},
+                  "childNodes": [
+                    {
+                      "id": 6,
+                      "type": 2,
+                      "tagName": "script",
+                      "attributes": {},
+                      "childNodes": [
+                        {
+                          "id": 7,
+                          "type": 3,
+                          "textContent": "parent.__REPLAY_SCRIPT_EXECUTED__ = true"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 8,
+                      "type": 2,
+                      "tagName": "p",
+                      "attributes": {},
+                      "childNodes": [
+                        { "id": 9, "type": 3, "textContent": "不可信回放内容" }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "initialOffset": { "top": 0, "left": 0 }
+      },
+      "timestamp": 2001
+    }
+  ]
+}

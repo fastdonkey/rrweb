@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DataInsights 本地安全回放</title>
+    <link rel="stylesheet" href="./rrweb.css" />
+  </head>
+  <body>
+    <h1>DataInsights 本地安全回放</h1>
+    <p>
+      此工具只接受本地测试 fixture。RecordingBatch 需要先由可信工具转换为 Replay
+      Segment；它不是生产 Replay Manifest 或对象存储客户端。
+    </p>
+    <input id="fixture" type="file" accept="application/json" />
+    <p id="warning" role="alert"></p>
+    <div id="replay-root"></div>
+    <script src="./rrweb.js"></script>
+    <script>
+      document
+        .querySelector('#fixture')
+        .addEventListener('change', async (event) => {
+          const file = event.target.files?.[0];
+          if (!file) return;
+          const fixture = JSON.parse(await file.text());
+          const segment = fixture.recordings
+            ? fixture.recordings[0].segments[0]
+            : fixture;
+          document.querySelector('#warning').textContent = segment
+            .missingSequenceRanges?.length
+            ? '警告：当前回放存在事件缺口'
+            : '';
+          const root = document.querySelector('#replay-root');
+          root.replaceChildren();
+          const replayer = new rrweb.Replayer(segment.events, {
+            root,
+            showWarning: false,
+            showDebug: false,
+          });
+          replayer.play(0);
+        });
+    </script>
+  </body>
+</html>

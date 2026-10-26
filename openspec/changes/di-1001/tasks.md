@@ -466,12 +466,12 @@ T01..T16 → T17
   - Create: `test/fixtures/replay-segments.json`
   - Create: `test/fixtures/untrusted-replay.json`
   - Create: `examples/local-replay/index.html`
-- [ ] RED：先写 segment 恢复和恶意脚本不执行测试。
-- [ ] VERIFY RED：确认本地回放验证工具缺失而失败。
-- [ ] GREEN：创建最小 fixture 和沙箱回放验证页。
-- [ ] VERIFY GREEN：运行定向浏览器测试。
-- [ ] REFACTOR：保持本地工具与生产 SDK 边界分离。
-- [ ] COMMIT：形成 Replay 验证提交。
+- [x] RED：先写 segment 恢复和恶意脚本不执行测试。
+- [x] VERIFY RED：确认本地回放验证工具缺失而失败。
+- [x] GREEN：创建最小 fixture 和沙箱回放验证页。
+- [x] VERIFY GREEN：运行定向浏览器测试。
+- [x] REFACTOR：保持本地工具与生产 SDK 边界分离。
+- [x] COMMIT：形成 Replay 验证提交。
 
 ### Task 17: verifyRelease_sdkBoundary_passesRegressionBudgets
 
