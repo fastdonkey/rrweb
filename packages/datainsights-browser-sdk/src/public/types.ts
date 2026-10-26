@@ -33,6 +33,13 @@ export interface DeliveryStateSnapshot {
   lastErrorCode?: SDKErrorCode;
 }
 
+export interface PersistenceCapabilitySnapshot {
+  readonly available: boolean;
+  readonly persisted: boolean | 'unsupported';
+  readonly quota?: number;
+  readonly usage?: number;
+}
+
 export interface DataInsightsOptions {
   appKey: string;
   transport: Transport;
@@ -129,6 +136,7 @@ export interface DebugInfo {
   readonly rrwebVersion: string;
   readonly rrwebCommit: string;
   readonly delivery: Readonly<DeliveryStateSnapshot>;
+  readonly persistence: Readonly<PersistenceCapabilitySnapshot>;
   readonly resourceCount: number;
   readonly hasHostIdentity: boolean;
   readonly workerFallback: boolean;

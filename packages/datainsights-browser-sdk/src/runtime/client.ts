@@ -11,6 +11,7 @@ import {
   openRecorderDatabase,
   type RecorderDatabase,
 } from '../persistence/database';
+import { probeRecorderDatabase } from '../persistence/capability';
 import { IndexedDbJournal } from '../persistence/indexeddb-journal';
 import { IndexedDbOutbox } from '../persistence/indexeddb-outbox';
 import {
@@ -394,10 +395,16 @@ export function createClient(): DataInsightsClient {
 
       state.transition('starting');
       startPromise = (async () => {
+        let persistencePassed = false;
         try {
           await Promise.resolve();
           const indexedDbFactory = globalThis.indexedDB;
           if (indexedDbFactory === undefined) {
+            diagnostics.updatePersistence({
+              available: false,
+              persisted: 'unsupported',
+            });
+            diagnostics.recordError('PERSISTENCE_UNAVAILABLE');
             state.transition('authorized');
             return failure(
               'PERSISTENCE_UNAVAILABLE',
@@ -405,6 +412,23 @@ export function createClient(): DataInsightsClient {
             );
           }
           database ??= await openRecorderDatabase(indexedDbFactory);
+          const persistence = await probeRecorderDatabase(
+            database,
+            typeof navigator === 'undefined' ? undefined : navigator.storage,
+          );
+          if (!persistence.ok) {
+            diagnostics.updatePersistence({
+              available: false,
+              persisted: 'unsupported',
+            });
+            diagnostics.recordError('PERSISTENCE_UNAVAILABLE');
+            database.close();
+            database = undefined;
+            state.transition('authorized');
+            return persistence;
+          }
+          diagnostics.updatePersistence(persistence.value);
+          persistencePassed = true;
           const identity = identityManager?.resolve(context?.userId);
           if (!identity?.ok) {
             state.transition('authorized');
@@ -545,6 +569,13 @@ export function createClient(): DataInsightsClient {
           return { ok: true, value: recordingContext };
         } catch {
           await releasePreparedRecording();
+          if (!persistencePassed) {
+            diagnostics.updatePersistence({
+              available: false,
+              persisted: 'unsupported',
+            });
+          }
+          diagnostics.recordError('PERSISTENCE_UNAVAILABLE');
           state.transition('authorized');
           return failure(
             'PERSISTENCE_UNAVAILABLE',

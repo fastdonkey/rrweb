@@ -569,12 +569,12 @@ T01..T16 → T17
 - Verify: `yarn workspace @datainsights/browser-sdk vitest run test/persistence-capability.test.ts test/indexeddb-journal.test.ts test/indexeddb-outbox.test.ts`
 - Dependencies: T08、T09、T20。
 - Files: `src/persistence/capability.ts`、`src/persistence/database.ts`、`src/runtime/client.ts`、`test/persistence-capability.test.ts`、`COMPATIBILITY.md`。
-- [ ] RED
-- [ ] VERIFY RED
-- [ ] GREEN
-- [ ] VERIFY GREEN
-- [ ] REFACTOR
-- [ ] COMMIT
+- [x] RED
+- [x] VERIFY RED
+- [x] GREEN
+- [x] VERIFY GREEN
+- [x] REFACTOR
+- [x] COMMIT
 
 ### Task 22: recordInsuranceClone_realInteraction_replaysLocally
 

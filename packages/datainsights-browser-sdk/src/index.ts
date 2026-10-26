@@ -6,6 +6,7 @@ export type {
   DataInsightsOptions,
   DebugInfo,
   DeliveryStateSnapshot,
+  PersistenceCapabilitySnapshot,
   RemoteConfigResolverOptions,
   ResolvedApplicationConfig,
   ConsentEvidence,

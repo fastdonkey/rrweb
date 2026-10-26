@@ -1,6 +1,7 @@
 import type {
   DebugInfo,
   DeliveryStateSnapshot,
+  PersistenceCapabilitySnapshot,
   SDKErrorCode,
 } from '../public/types';
 import { BUILD_INFO } from '../build-info';
@@ -30,11 +31,19 @@ export class DiagnosticsStore {
     pendingBytes: 0,
   });
   private readonly errors: Array<{ readonly code: SDKErrorCode }> = [];
+  private persistenceState: PersistenceCapabilitySnapshot = Object.freeze({
+    available: false,
+    persisted: 'unsupported',
+  });
 
   constructor(private readonly callback?: DeliveryStateCallback) {}
 
   get delivery(): Readonly<DeliveryStateSnapshot> {
     return this.deliveryState;
+  }
+
+  updatePersistence(capability: Readonly<PersistenceCapabilitySnapshot>): void {
+    this.persistenceState = Object.freeze({ ...capability });
   }
 
   updateCapacity(usedBytes: number, maximumBytes: number): void {
@@ -76,6 +85,7 @@ export class DiagnosticsStore {
       state: input.lifecycleState,
       ...BUILD_INFO,
       delivery: this.deliveryState,
+      persistence: this.persistenceState,
       resourceCount: input.resourceCount,
       hasHostIdentity: input.hasHostIdentity,
       workerFallback: input.workerFallback ?? false,

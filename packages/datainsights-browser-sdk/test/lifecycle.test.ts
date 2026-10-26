@@ -20,6 +20,12 @@ interface TestClient {
     state: string;
     resourceCount?: number;
     workerFallback?: boolean;
+    persistence?: {
+      available: boolean;
+      persisted: boolean | 'unsupported';
+      quota?: number;
+      usage?: number;
+    };
   };
 }
 
@@ -121,6 +127,76 @@ describe('SDK lifecycle', () => {
     } finally {
       if (original) Object.defineProperty(globalThis, 'indexedDB', original);
     }
+  });
+
+  it('reports the sanitized runtime persistence capability', async () => {
+    vi.stubGlobal('indexedDB', new IDBFactory());
+    vi.stubGlobal('navigator', {
+      storage: {
+        estimate: vi.fn(async () => ({ quota: 4096, usage: 512 })),
+        persisted: vi.fn(async () => false),
+        persist: vi.fn(async () => false),
+      },
+    });
+    const client = await freshClient();
+    client.init({ appKey: 'insurance-h5', transport });
+    grant(client);
+
+    expect((await client.start()).ok).toBe(true);
+    expect(client.getDebugInfo().persistence).toEqual({
+      available: true,
+      persisted: false,
+      quota: 4096,
+      usage: 512,
+    });
+
+    await client.destroy();
+    vi.unstubAllGlobals();
+  });
+
+  it('fails before recording when the opened database cannot pass its transaction probe', async () => {
+    const record = vi.fn(() => vi.fn());
+    vi.doMock('@rrweb/record', () => ({
+      record: Object.assign(record, {
+        addCustomEvent: vi.fn(),
+        takeFullSnapshot: vi.fn(),
+      }),
+    }));
+    const factory = new IDBFactory();
+    const open = factory.open.bind(factory);
+    vi.spyOn(factory, 'open').mockImplementation(
+      (name: string, version?: number) => {
+        const request =
+          version === undefined ? open(name) : open(name, version);
+        request.addEventListener('success', () => {
+          vi.spyOn(request.result, 'transaction').mockImplementationOnce(() => {
+            throw new Error('metadata denied');
+          });
+        });
+        return request;
+      },
+    );
+    vi.stubGlobal('indexedDB', factory);
+    const client = await freshClient();
+    client.init({ appKey: 'insurance-h5', transport });
+    grant(client);
+
+    expect(await client.start()).toEqual({
+      ok: false,
+      error: {
+        code: 'PERSISTENCE_UNAVAILABLE',
+        message: expect.any(String),
+      },
+    });
+    expect(record).not.toHaveBeenCalled();
+    expect(client.getDebugInfo()).toMatchObject({
+      state: 'authorized',
+      persistence: { available: false, persisted: 'unsupported' },
+    });
+
+    await client.destroy();
+    vi.doUnmock('@rrweb/record');
+    vi.unstubAllGlobals();
   });
 
   it('releases prepared resources when rrweb cannot start', async () => {

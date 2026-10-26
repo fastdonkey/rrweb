@@ -173,17 +173,17 @@ git commit -m "feat(sdk): bootstrap recording from app key"
 - 测试：`packages/datainsights-browser-sdk/test/persistence-capability.test.ts`
 - 创建：`packages/datainsights-browser-sdk/COMPATIBILITY.md`
 
-- [ ] **步骤 1：编写 open/write/read/delete 和失败门禁测试**
+- [x] **步骤 1：编写 open/write/read/delete 和失败门禁测试**
 
 测试必须覆盖：正常 fake-indexeddb、缺少 indexedDB、open 抛错、transaction abort、读回不一致、StorageManager API 缺失、`persist()` 返回 false。探测记录使用 `metadata` store 的随机 key，并在同一探测完成前删除。
 
-- [ ] **步骤 2：运行测试并确认 RED**
+- [x] **步骤 2：运行测试并确认 RED**
 
 运行：`yarn workspace @datainsights/browser-sdk vitest run test/persistence-capability.test.ts`
 
 预期：FAIL，capability probe 尚不存在。
 
-- [ ] **步骤 3：实现探测和诊断结果**
+- [x] **步骤 3：实现探测和诊断结果**
 
 ```ts
 export interface PersistenceCapability {
@@ -201,7 +201,7 @@ export async function probePersistenceCapability(
 
 探测失败返回 `PERSISTENCE_UNAVAILABLE`；不得降级到内存录制。`persist()` 拒绝只影响诊断，不把正常可写的 IndexedDB 判为不可用。
 
-- [ ] **步骤 4：建立兼容矩阵并运行测试**
+- [x] **步骤 4：建立兼容矩阵并运行测试**
 
 `COMPATIBILITY.md` 明确区分 Automated、Manual Passed、Pending，列出 iOS Safari、Android Chrome、微信/企业微信、支付宝、Windows Chrome/Edge、macOS Chrome/Safari。没有实际设备证据的项目必须保持 Pending。
 
@@ -209,7 +209,7 @@ export async function probePersistenceCapability(
 
 预期：PASS。
 
-- [ ] **步骤 5：提交**
+- [x] **步骤 5：提交**
 
 ```bash
 git add packages/datainsights-browser-sdk/src/persistence packages/datainsights-browser-sdk/src/runtime/client.ts packages/datainsights-browser-sdk/src/public/types.ts packages/datainsights-browser-sdk/test/persistence-capability.test.ts packages/datainsights-browser-sdk/COMPATIBILITY.md
