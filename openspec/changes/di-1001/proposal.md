@@ -3,8 +3,8 @@ jira: DI-1001
 jira_source: user-provided
 jira_sync: unavailable
 prd_source: openspec/changes/di-1001/prd/
-prd_version: 1.7
-proposal_version: 1.2
+prd_version: 1.8
+proposal_version: 1.3
 prd_confirmed_at: 2026-10-26
 proposal_derived_at: 2026-10-25T22:33:38+08:00
 proposal_updated_at: 2026-10-26
@@ -39,7 +39,7 @@ proposal_updated_at: 2026-10-26
 | 项目 | 内容 |
 | --- | --- |
 | PRD 来源 | `openspec/changes/di-1001/prd/` |
-| PRD 版本 | v1.7 |
+| PRD 版本 | v1.8 |
 | PRD 状态 | Confirmed |
 | PRD 确认人 | 用户 |
 | PRD 确认时间 | 2026-10-25T22:33:38+08:00 |
@@ -59,6 +59,7 @@ proposal_updated_at: 2026-10-26
 6. 将 DataInsights 产品能力与 rrweb 上游包分层，确保 Fork 可持续升级。
 7. 通过应用级 `appKey` 和浏览器 durable outbox 尽可能降低跨客户应用混用及录制数据丢失风险。
 8. 建立从采集序列到持久化回执、缺口对账和容量降级的分层上送质量体系；本期只实现 SDK 与 Mock 契约。
+9. 通过 AppKey 受信任路由、简化 `bootstrap()`、IndexedDB 运行时门禁和本地保险录制回放环境降低接入与验证成本。
 
 ## 5. 核心流程
 
@@ -151,6 +152,20 @@ flowchart LR
 5. 原则上禁止破坏 rrweb 事件协议兼容性的修改；例外需单独批准。
 6. 保留 MIT License、版权声明、NOTICE、上游 remote、基线 commit 和同步记录。
 
+### 6.9 AppKey 路由与简化接入
+
+1. AppKey 使用 `di_{environment}_{region}_{randomId}`，只携带受信任配置中心的路由提示，不编码完整服务器地址或秘密。
+2. 推荐 `bootstrap()` 只接收 AppKey、授权入口、告知版本和可选用户 ID 回调；不接收 endpoint、platform、tenantId 或长期 secret。
+3. `noticeVersion` 标识用户点击时看到的告知文案版本；配置解析完成不代表授权，只有实际点击 `startSelector` 后才能启动。
+4. 配置服务返回 Collector 主备地址、短期上传凭证、版本和启停状态；未知路由、无效响应或停用应用必须 fail closed。
+
+### 6.10 持久化门禁与本地保险验证
+
+1. 首次录制前必须完成 IndexedDB open/write/read/delete 探测；失败返回 `PERSISTENCE_UNAVAILABLE`，不得降级为内存录制。
+2. Storage Estimate/Persist 只作为脱敏诊断；持久化授权被拒绝不得虚报成功，也不否定已通过的 IndexedDB 可写性。
+3. 真机兼容结果按 Automated、Manual Passed 和 Pending 区分，桌面移动视口不得替代移动设备或 WebView 真机证据。
+4. 本地保险 E2E 使用去生产化页面、真实 UMD/Worker、测试 AppKey、Mock Config/Collector 和生成的 rrweb 事件；拒绝所有非本地网络请求。
+
 ## 7. 影响范围
 
 - **影响对象**：DataInsights 公共 API、SDK 配置、录制事件、批次契约、身份与 Session 元数据、构建产物、录制 fixture。
@@ -171,6 +186,7 @@ flowchart LR
 - 批次内容哈希、持久化回执校验、序列缺口对账、定向重传和容量分级诊断；
 - 自定义事件、调试信息、异常隔离和完整资源释放；
 - 示例页、本地播放器、事件 fixture、普通页面和 SPA 兼容测试；
+- AppKey 配置解析、简化 Bootstrap、IndexedDB 运行时门禁和去生产化保险产品真实录制回放；
 - Fork 基线、许可证、补丁登记和上游同步验证机制。
 
 ### 8.2 明确排除
@@ -201,6 +217,9 @@ flowchart LR
 14. 断网、刷新和浏览器重启后可恢复未确认批次；持久化队列不静默覆盖数据，无法保证的浏览器存储边界有明确诊断和文档。
 15. 普通 HTTP 成功、sendBeacon 已接收或不匹配回执不会删除 Outbox；匹配的持久化回执才能确认批次。
 16. Mock Transport 可验证内容哈希、哈希链、连续序号、缺失区间对账和定向重传。
+17. 推荐接入不要求 endpoint 或长期 secret；AppKey 可解析可信配置，用户点击前不录制。
+18. IndexedDB 运行时探测失败时 rrweb 不启动；持久化授权状态在脱敏诊断中如实呈现。
+19. 本地保险 E2E 可证明普通字段录制、密码排除、精确回执清理、零外网和真实 sandbox 回放。
 
 ## 10. 已确认事项
 
@@ -217,6 +236,9 @@ flowchart LR
 | 9 | 应用隔离 | 每个客户产品平台环境使用独立公开 appKey；SDK 不重复接收 platform，长期 secret 不进入浏览器 | 用户 | 2026-10-25 |
 | 10 | 可靠投递 | IndexedDB durable outbox；1 秒或 20 条持久化窗口；匹配持久化回执后删除；断网/刷新恢复；有限重试只是策略之一 | 用户（方案 A） | 2026-10-25 |
 | 11 | 分层上送质量 | SDK 实现序列、本地持久化、网络恢复、幂等/哈希、持久化回执、缺口对账、容量降级；生产后端只定义契约并 Mock | 用户（方案 A） | 2026-10-26 |
+| 12 | 简化接入 | AppKey 路由到配置服务，嵌入方不填写 endpoint；推荐 `bootstrap()` | 用户 | 2026-10-26 |
+| 13 | 持久化门禁 | 录制前真实探测 IndexedDB；失败不录制；继续建立正式真机兼容矩阵 | 用户 | 2026-10-26 |
+| 14 | 本地保险验证 | 去生产化本地页面、真实录制与回放、零外网测试 | 用户（方案 A） | 2026-10-26 |
 
 ## 11. ASSUMPTIONS I'M MAKING
 
@@ -245,11 +267,11 @@ flowchart LR
 
 | 术语或决策 | 已确认含义或选择 | 依据 | 适用范围 |
 | --- | --- | --- | --- |
-| DataInsights SDK | 面向嵌入方的稳定产品 API，不等同于 rrweb 内部 API | PRD v1.7 | DI-1001 |
+| DataInsights SDK | 面向嵌入方的稳定产品 API，不等同于 rrweb 内部 API | PRD v1.8 | DI-1001 |
 | User | 嵌入方 ID 或 SDK 授权后生成的第一方 UUID 所代表的用户 | 用户确认 | 身份关联 |
 | Journey | 由 `journeyId` 表示的一次投保业务流程，可包含多个 Session | 用户确认 | 纠纷核验 |
 | Session | 一次连续浏览器操作过程，按显式结束或 30 分钟空闲划分 | 用户确认 | 录制边界 |
-| Recording | SDK 实际启动后产生的一段连续录制，不含启动前历史 | PRD v1.7 | 事件输出 |
+| Recording | SDK 实际启动后产生的一段连续录制，不含启动前历史 | PRD v1.8 | 事件输出 |
 | Segment | 长录制的技术分片，不代表 Session 或 Journey 结束 | 用户确认 | 存储与回放 |
 | Untrusted Replay Data | 可能包含攻击者控制 DOM、属性、URL 或媒体状态的 rrweb 数据 | 仓库 `CONTEXT.md` | 本地回放验证 |
 
@@ -303,7 +325,7 @@ flowchart LR
 
 ## 18. 依赖与证据
 
-- Confirmed PRD v1.7：`openspec/changes/di-1001/prd/`；
+- Confirmed PRD v1.8：`openspec/changes/di-1001/prd/`；
 - rrweb Fork 基线：commit `e051ddb`，版本 `2.2.0`；
 - rrweb 公共包：`@rrweb/record`、`@rrweb/types`、`@rrweb/utils`；
 - 项目安全上下文：根目录 `CONTEXT.md`；

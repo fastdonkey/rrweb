@@ -3,7 +3,7 @@
 ## 文档状态
 
 - 状态：Confirmed
-- 版本：v1.7
+- 版本：v1.8
 - 日期：2026-10-26
 - Jira：DI-1001
 - 实现分支：`futrue-v1`
@@ -13,7 +13,7 @@
 
 ## 目标
 
-基于 rrweb 源码 Fork 构建 DataInsights 浏览器 SDK，使客户可以通过一行 `<script>` 或稳定 JavaScript API 完成受控的用户行为录制。本期只交付前端 SDK 与本地验证工具，不建设生产后端。
+基于 rrweb 源码 Fork 构建 DataInsights 浏览器 SDK，使客户可以通过固定版本 `<script>` 加少量 `bootstrap()` 参数完成受控的用户行为录制。本期只交付前端 SDK、Mock 契约与本地验证工具，不建设生产后端。
 
 ## 文档导航
 
@@ -25,7 +25,7 @@
 
 ## 决策状态
 
-Proposal 阶段的 Blocking 决策已经全部关闭。用户已明确确认 PRD v1.7，可作为唯一 `proposal.md` 的需求输入。
+Proposal 阶段的 Blocking 决策已经全部关闭。用户已明确确认 PRD v1.8，可作为唯一 `proposal.md` 的需求输入。
 
 已确认：
 
@@ -39,6 +39,10 @@ Proposal 阶段的 Blocking 决策已经全部关闭。用户已明确确认 PRD
 - 每个“客户 × 产品 × 平台 × 环境”使用独立公开 `appKey`；SDK 不重复接收 `platform`，也不接收长期 `appSecret/securityKey`。
 - 可靠投递采用方案 A：事件每 1 秒或 20 条形成持久化窗口，写入 IndexedDB 后再投递；重试只是恢复策略之一。
 - 完整上送采用分层保障：采集序列、本地持久化、网络恢复、幂等与哈希校验、持久化回执、缺口对账、容量降级共同生效；本期实现 SDK 与 Mock 契约，不建设生产后端。
+- AppKey 使用 `di_{environment}_{region}_{randomId}`，只携带可信路由提示；Collector 地址和短期凭证由配置服务解析，嵌入方不配置 `endpoint`。
+- 推荐接入使用 `bootstrap({ appKey, consent, resolveUserId? })`；`noticeVersion` 标识用户点击时看到的告知文案版本，不是服务地址。
+- 录制前必须通过 IndexedDB open/write/read/delete 运行时门禁；真机未验证平台保持 Pending，不以桌面移动视口替代真机证据。
+- 本期提供只绑定本地回环地址的去生产化保险页面、Mock Config/Collector 和真实 rrweb 回放，不复制生产脚本、接口、Cookie、Fingerprint 或监控。
 
 ## 行业规则依据
 

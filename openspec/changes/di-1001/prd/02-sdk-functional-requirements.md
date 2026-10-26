@@ -20,8 +20,10 @@ DataInsights 不应把客户直接绑定到 `packages/rrweb`、`packages/record`
 
 ## 2. 初始化与配置
 
-- Script Tag 自动读取 `data-*` 配置；
-- JavaScript API 可提供完整配置对象；
+- 推荐 Script Tag 接入通过 `bootstrap()` 提供 AppKey、授权入口、告知版本和可选用户 ID 回调；
+- AppKey 格式为 `di_{environment}_{region}_{randomId}`，环境/区域只用于受信任配置中心路由，不能把任意 Key 内容拼成 URL；
+- 嵌入方不配置 endpoint、platform、tenantId 或长期 secret；配置服务返回 Collector 主备地址、短期上传凭证、配置版本和启停状态；
+- JavaScript 高级 API 可提供完整配置对象和自定义 Transport，用于测试或受审集成；
 - 重复初始化必须幂等，不能重复注册监听器；
 - 配置需要 schema、默认值、未知字段处理和版本标识；
 - 本期可定义远程配置 Provider 接口，但不实现生产配置服务；
@@ -39,6 +41,8 @@ DataInsights 不应把客户直接绑定到 `packages/rrweb`、`packages/record`
 | `consent.revoke` | 立即停止后续录制；历史数据处置不属于本期 |
 
 `destroy()` 不得删除宿主 Cookie、localStorage 或业务 IndexedDB，也不得删除尚未获得 `accepted` 的 SDK durable outbox；它只关闭 SDK 自有数据库连接和运行资源。
+
+`start()` 在 rrweb 前执行 IndexedDB open/write/read/delete 门禁。缺失、拒绝、事务失败或读回不一致返回 `PERSISTENCE_UNAVAILABLE`；`StorageManager.persist()` 不支持或被拒绝只影响脱敏诊断，不把可写 IndexedDB 误判为不可用。
 
 ## 4. 录制能力
 
@@ -142,4 +146,14 @@ Memory、Download、Mock HTTP Transport 均标记为 `test-only`，只验证 SDK
 - Source Map 策略；
 - 固定版本 CDN 文件名及内容哈希；
 - 构建产物不得包含测试凭证或内部调试配置。
+
+## 10. 本地保险录制与回放验证
+
+- 提供移动端长页面、计划切换、保障弹窗、投保表单和提交交互；
+- 页面与服务只绑定 `127.0.0.1`，不包含生产脚本、接口、Cookie、Fingerprint、监控或外链；
+- 真实 UMD/Worker 通过测试 AppKey 解析本地 Mock Config/Collector；
+- Collector 返回精确 `persisted: true` 回执，E2E 验证 Journal/Outbox 清空；
+- 普通姓名、手机号、证件号、保额、计划和自定义提交事件可回放，密码测试值不得存在；
+- Replay iframe 使用精确 `sandbox="allow-same-origin"`，不得允许脚本执行；
+- E2E 中任何非本地 HTTP(S) 请求均视为失败。
 

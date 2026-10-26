@@ -6,10 +6,10 @@
 | -------- | ------------------------------------------------- |
 | 功能名称 | 基于 rrweb Fork 构建 DataInsights 浏览器 SDK      |
 | 需求编号 | DI-1001                                           |
-| 任务总数 | 17                                                |
+| 任务总数 | 23                                                |
 | 创建日期 | 2026-10-26                                        |
-| 参考文档 | `proposal.md` v1.2、`design.md` v1.3、`prd/` v1.7 |
-| 当前阶段 | Tasks                                             |
+| 参考文档 | `proposal.md` v1.3、`design.md` v1.4、`prd/` v1.8 |
+| 当前阶段 | Apply Complete / Review Ready                      |
 | 实现分支 | `futrue-v1`                                       |
 
 ## 范围护栏
@@ -608,12 +608,12 @@ T01..T16 → T17
 - Verify: 见 `implementation-plan-v1.4.md` Task 23，所有浏览器构建命令顺序执行。
 - Dependencies: T18-T22。
 - Files: `README.md`、`prd/`、`proposal.md`、`tasks.md`、`test-cases.md`、`review-report.md`。
-- [ ] RED
-- [ ] VERIFY RED
-- [ ] GREEN
-- [ ] VERIFY GREEN
-- [ ] REFACTOR
-- [ ] COMMIT
+- [x] RED
+- [x] VERIFY RED
+- [x] GREEN
+- [x] VERIFY GREEN
+- [x] REFACTOR
+- [x] COMMIT
 
 ## Checkpoint 执行要求
 

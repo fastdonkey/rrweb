@@ -1,7 +1,7 @@
 ---
 jira: DI-1001
 proposal_source: openspec/changes/di-1001/proposal.md
-proposal_version: 1.2
+proposal_version: 1.3
 design_version: 1.4
 created: 2026-10-25
 updated: 2026-10-26
@@ -930,7 +930,7 @@ DataInsights 只导入 rrweb package export 暴露的入口。禁止从 `package
 ## 21. 设计依据
 
 - `openspec/changes/di-1001/proposal.md`；
-- `openspec/changes/di-1001/prd/` v1.7；
+- `openspec/changes/di-1001/prd/` v1.8；
 - 用户在 Design 澄清中确认：所有已授权投保 Journey 强制 100% 录制；
 - 用户在 Design 澄清中确认：同一客户的不同产品平台（如 H5、PC）必须独立管理；
 - 用户在 Design 澄清中确认：可靠性不能只依赖重试，采用方案 A 的 1 秒/20 事件 IndexedDB 持久化窗口；

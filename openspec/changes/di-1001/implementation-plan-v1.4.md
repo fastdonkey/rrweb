@@ -292,11 +292,11 @@ git commit -m "test(sdk): add local insurance recording replay demo"
 - 修改：`openspec/changes/di-1001/test-cases.md`
 - 修改：`openspec/changes/di-1001/review-report.md`
 
-- [ ] **步骤 1：更新接入和本地演示文档**
+- [x] **步骤 1：更新接入和本地演示文档**
 
 README 的推荐示例不得包含 endpoint、appSecret 或 securityKey；明确 AppKey 路由、配置失败 fail closed、`noticeVersion` 含义、内部演示用途及启动/回放 URL。
 
-- [ ] **步骤 2：运行 SDK 全量验证**
+- [x] **步骤 2：运行 SDK 全量验证**
 
 依次运行，禁止与 rrweb 浏览器构建并行：
 
@@ -308,7 +308,7 @@ yarn workspace @datainsights/browser-sdk prepublish
 
 预期：全部通过并生成 ESM/CJS/UMD/types/Worker。
 
-- [ ] **步骤 3：运行受影响上游回归**
+- [x] **步骤 3：运行受影响上游回归**
 
 ```bash
 yarn workspace @rrweb/record test
@@ -317,11 +317,11 @@ yarn workspace rrweb test
 
 预期：功能回归通过；已有平台像素快照差异单独记录且不得更新快照掩盖。
 
-- [ ] **步骤 4：更新测试证据和 Review Gate**
+- [x] **步骤 4：更新测试证据和 Review Gate**
 
 记录正向、边界、异常、隐私、零外网、录制/回放、IndexedDB 探测及回归结果；真机矩阵没有执行的条目保持 Pending。检查构建产物不包含 endpoint 配置示例、长期 secret、测试 token 或众安生产 URL。
 
-- [ ] **步骤 5：提交**
+- [x] **步骤 5：提交**
 
 ```bash
 git add packages/datainsights-browser-sdk/README.md openspec/changes/di-1001

@@ -21,6 +21,7 @@ DataInsights SDK 是面向保险业务场景的浏览器端用户行为录制 SD
 - 脱敏、屏蔽、采样、长会话和故障降级；
 - 自定义事件、调试信息和身份接口的前端边界；
 - 示例页面、本地播放器与录制 fixture；
+- 去生产化保险产品页面、本地 Mock Config/Collector 与真实录制回放 E2E；
 - 浏览器、SPA、CSP 和长期运行测试；
 - MIT License、NOTICE、本地补丁和升级记录。
 
@@ -39,23 +40,30 @@ DataInsights SDK 是面向保险业务场景的浏览器端用户行为录制 SD
 ### 5.1 Script Tag
 
 ```html
-<script
-  async
-  src="https://cdn.datainsights.io/sdk/v1.js"
-  data-app-key="app_public_key"
-></script>
+<script src="https://cdn.datainsights.io/sdk/0.1.0/datainsights-browser-sdk.min.js"></script>
+<script>
+  DataInsights.bootstrap({
+    appKey: 'di_p_cn1_K7J9M2X4',
+    consent: {
+      startSelector: '#start-insurance',
+      noticeVersion: 'insurance-notice-v1',
+    },
+    resolveUserId: () => window.currentUser?.id,
+  });
+</script>
 ```
 
 生产接入应支持固定版本 URL。`latest.js` 只能作为开发或试用别名，不作为可审计的生产默认方式。
 
-本期 Script Tag 完成全局 facade 和公开 `appKey` 装载，但不内置生产接收端。未显式注入 Transport 时 `start()` 必须失败，不能以 MemoryTransport 冒充生产送达；真正的一行生产接入依赖后续可返回持久化回执的生产 Transport/服务端。
+`appKey` 是公开路由标识，不是密钥。浏览器端不填写 `endpoint`、`platform`、`tenantId`、`appSecret` 或 `securityKey`；SDK 从 AppKey 的受信任环境/区域提示选择配置中心，再解析 Collector 主备地址与短期凭证。生产接收端仍由后续服务端变更实现。
 
 ### 5.2 JavaScript API
 
 ```ts
-DataInsights.init(options);
-DataInsights.consent.grant();
-DataInsights.start();
+DataInsights.bootstrap(options); // 推荐接入
+DataInsights.init(options); // 高级/测试/自定义 Transport
+DataInsights.consent.grant(); // 高级 API
+DataInsights.start(); // 高级 API
 DataInsights.addCustomEvent('expense_submit', payload);
 DataInsights.identify(userAlias);
 DataInsights.clearIdentity();
@@ -108,4 +116,7 @@ DataInsights.getDebugInfo();
 | 应用隔离 | 每个“客户 × 产品 × 平台 × 环境”分配独立公开 `appKey`；SDK 不接收重复的 `platform` 字段，长期 `appSecret/securityKey` 不得进入浏览器 | 用户明确确认 | 2026-10-25 |
 | 可靠投递 | 采用 IndexedDB 持久化队列；每 1 秒或 20 条事件形成持久化窗口，持久化后投递，仅在匹配且 `persisted: true` 的回执后删除；重试只是恢复策略之一 | 用户明确确认（方案 A） | 2026-10-25 |
 | 分层上送质量 | SDK 实现采集序列、本地持久化、网络恢复、幂等/哈希、持久化回执、缺口对账和容量降级；生产后端仅定义契约和 Mock，不纳入本期 | 用户明确确认（方案 A） | 2026-10-26 |
+| 简化接入与路由 | AppKey 携带环境/区域提示，SDK 解析受信任配置服务；嵌入方不配置 endpoint，推荐使用 `bootstrap()` | 用户明确确认 | 2026-10-26 |
+| IndexedDB 兼容门禁 | 录制前真实执行 open/write/read/delete；失败不启动 rrweb，不提供生产内存降级；真机结果单独记录 | 用户明确确认 | 2026-10-26 |
+| 本地真实验证 | 使用去生产化保险页面、本地 Mock Config/Collector 和真实 rrweb 回放；拒绝全部非本地网络请求 | 用户明确确认（方案 A） | 2026-10-26 |
 

@@ -21,6 +21,8 @@
 - Chrome、Firefox、Safari 的受支持版本在 Design 阶段按 rrweb 上游和业务客户分布确定；
 - 不支持的浏览器必须安全退出或降级，不能破坏宿主页面；
 - IE11 不作为默认目标；如业务要求支持，必须作为独立成本评估。
+- IndexedDB 真机证据以 `packages/datainsights-browser-sdk/COMPATIBILITY.md` 为准；iOS Safari、Android Chrome、微信/企业微信、支付宝、Windows Chrome/Edge 和 macOS Safari 在未实测前均保持 Pending。
+- 桌面移动视口只验证布局和自动化流程，不等同于移动设备或超级 App WebView 真机通过。
 
 ## 3. 功能验收
 
@@ -48,6 +50,10 @@
 - [ ] 默认脱敏和自定义 block/mask 通过 fixture 检查；
 - [ ] `getDebugInfo()` 不包含录制内容或敏感数据。
 - [ ] 嵌入方提供用户唯一标识时 SDK 正确关联；未提供时在授权后生成第一方随机 UUID；构建产物不包含 FingerprintJS。
+- [ ] 推荐 `bootstrap()` 示例不包含 endpoint、platform、tenantId 或长期 secret；AppKey 路由失败时不启动录制。
+- [ ] IndexedDB open/write/read/delete 门禁失败时返回 `PERSISTENCE_UNAVAILABLE`，且 rrweb 未启动。
+- [ ] 本地保险 E2E 在点击前无录制，点击后完成普通字段录制、密码排除、精确回执清理和真实 rrweb sandbox 回放。
+- [ ] 本地保险 E2E 拒绝所有非 `127.0.0.1`/`localhost` HTTP(S) 请求。
 
 ## 4. 资源与性能验收
 
