@@ -389,12 +389,12 @@ T01..T16 → T17
   - Modify: `src/pipeline/outbox-dispatcher.ts`
   - Modify: `src/transport/mock-http.ts`
   - Test: `test/reconciliation.test.ts`
-- [ ] RED：先写 missing ranges 定向选择和不删除测试。
-- [ ] VERIFY RED：确认 reconciliation 缺失导致失败。
-- [ ] GREEN：实现最小区间校验和重传选择。
-- [ ] VERIFY GREEN：运行定向测试。
-- [ ] REFACTOR：提取纯区间函数并覆盖边界。
-- [ ] COMMIT：形成对账补偿提交。
+- [x] RED：先写 missing ranges 定向选择和不删除测试。
+- [x] VERIFY RED：确认 reconciliation 缺失导致失败。
+- [x] GREEN：实现最小区间校验和重传选择。
+- [x] VERIFY GREEN：运行定向测试。
+- [x] REFACTOR：提取纯区间函数并覆盖边界。
+- [x] COMMIT：形成对账补偿提交。
 
 ### Task 14: reportDeliveryState_capacityThresholds_staysLocal
 

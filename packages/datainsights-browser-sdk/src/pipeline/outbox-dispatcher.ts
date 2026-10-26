@@ -2,6 +2,7 @@ import {
   acknowledgePersistedReceipt,
   validatePersistedReceipt,
 } from '../delivery/receipt-validator';
+import { planReconciliation } from '../delivery/reconciliation';
 import type { RecordingBatchV1 } from './batcher';
 import type {
   Transport,
@@ -34,7 +35,12 @@ export interface OutboxDispatcherOptions {
   readonly eventTarget?: EventTarget;
   readonly scheduleIntervalMs?: number;
   readonly onBlocked?: (batch: Readonly<RecordingBatchV1>) => void;
+  readonly wait?: (delayMs: number, signal: AbortSignal) => Promise<boolean>;
 }
+
+export type ReconciliationDispatchResult =
+  | { readonly ok: true; readonly resent: number }
+  | { readonly ok: false; readonly error: 'RECONCILIATION_FAILED' };
 
 function retryDelay(
   retryIndex: number,
@@ -109,6 +115,50 @@ export class OutboxDispatcher {
     return this.inFlight;
   }
 
+  async reconcile(
+    recordingId: string,
+    localSequenceEnd: number,
+    trigger: Extract<DispatchTrigger, 'startup' | 'online' | 'manual'>,
+  ): Promise<ReconciliationDispatchResult> {
+    if (
+      this.controller.signal.aborted ||
+      this.options.transport.capability !== 'persisted-receipt-v1'
+    ) {
+      return { ok: false, error: 'RECONCILIATION_FAILED' };
+    }
+    let result;
+    try {
+      result = await this.options.transport.reconcile(recordingId, {
+        signal: this.controller.signal,
+      });
+    } catch (_error) {
+      return { ok: false, error: 'RECONCILIATION_FAILED' };
+    }
+    const local = await this.options.outbox.list();
+    const plan = planReconciliation(
+      recordingId,
+      localSequenceEnd,
+      result,
+      local,
+    );
+    if (!plan.ok) return plan;
+    let resent = 0;
+    for (const selected of plan.batches) {
+      const matching = local.find(
+        (candidate) => candidate.batchId === selected.batchId,
+      );
+      if (!matching) {
+        return { ok: false, error: 'RECONCILIATION_FAILED' };
+      }
+      const outcome = await this.sendWithRetries(matching, trigger);
+      if (outcome !== 'accepted') {
+        return { ok: false, error: 'RECONCILIATION_FAILED' };
+      }
+      resent += 1;
+    }
+    return { ok: true, resent };
+  }
+
   destroy(): void {
     this.controller.abort();
     if (this.interval !== undefined) clearInterval(this.interval);
@@ -119,7 +169,23 @@ export class OutboxDispatcher {
 
   private async run(trigger: DispatchTrigger): Promise<DispatchResult> {
     let sent = 0;
-    const batches = await this.options.outbox.list();
+    let batches = await this.options.outbox.list();
+    if (
+      (trigger === 'startup' || trigger === 'online') &&
+      this.options.transport.capability === 'persisted-receipt-v1'
+    ) {
+      const recordings = new Map<string, number>();
+      for (const batch of batches) {
+        recordings.set(
+          batch.recordingId,
+          Math.max(recordings.get(batch.recordingId) ?? 0, batch.sequenceEnd),
+        );
+      }
+      for (const [recordingId, localSequenceEnd] of recordings) {
+        await this.reconcile(recordingId, localSequenceEnd, trigger);
+      }
+      batches = await this.options.outbox.list();
+    }
     for (const batch of batches) {
       if (this.controller.signal.aborted) {
         return { state: 'idle', sent, cancelled: true };
@@ -165,9 +231,10 @@ export class OutboxDispatcher {
         return 'accepted';
       }
       if (attemptIndex === RETRY_DELAYS_MS.length) return 'exhausted';
-      const continued = await this.wait(
-        retryDelay(attemptIndex, this.random, result),
-      );
+      const delay = retryDelay(attemptIndex, this.random, result);
+      const continued = this.options.wait
+        ? await this.options.wait(delay, this.controller.signal)
+        : await this.wait(delay);
       if (!continued) return 'cancelled';
     }
     return 'exhausted';

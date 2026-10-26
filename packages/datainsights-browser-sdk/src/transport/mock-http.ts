@@ -1,6 +1,12 @@
 import { validatePersistedReceipt } from '../delivery/receipt-validator';
 import type { RecordingBatchV1 } from '../pipeline/batcher';
-import type { TestTransport, TransportContext, TransportResult } from './types';
+import type {
+  PersistedReceiptTransport,
+  ReconciliationResult,
+  TestTransport,
+  TransportContext,
+  TransportResult,
+} from './types';
 
 export interface MockHttpResponse {
   readonly status: number;
@@ -57,5 +63,37 @@ export class MockHttpTransport implements TestTransport {
       return { status: 'retryable', reason: `http-${response.status}` };
     }
     return { status: 'rejected', reason: `http-${response.status}` };
+  }
+}
+
+export type MockReconciliationHandler = (
+  recordingId: string,
+  context: { readonly signal: AbortSignal },
+) => Promise<ReconciliationResult>;
+
+export class MockPersistedHttpTransport implements PersistedReceiptTransport {
+  readonly name = 'mock-persisted-http';
+  readonly capability = 'persisted-receipt-v1';
+  private readonly delivery: MockHttpTransport;
+
+  constructor(
+    handler: MockHttpHandler,
+    private readonly reconciliationHandler: MockReconciliationHandler,
+  ) {
+    this.delivery = new MockHttpTransport(handler);
+  }
+
+  send(
+    batch: Readonly<RecordingBatchV1>,
+    context: Readonly<TransportContext>,
+  ): Promise<TransportResult> {
+    return this.delivery.send(batch, context);
+  }
+
+  reconcile(
+    recordingId: string,
+    context: { readonly signal: AbortSignal },
+  ): Promise<ReconciliationResult> {
+    return this.reconciliationHandler(recordingId, context);
   }
 }
