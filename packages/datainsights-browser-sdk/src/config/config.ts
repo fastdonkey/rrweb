@@ -114,6 +114,12 @@ export function validateConfig(options: unknown): ValidationResult {
     return invalidConfig('A valid transport is required.');
   }
   if (
+    transport.capability === 'persisted-receipt-v1' &&
+    typeof transport.reconcile !== 'function'
+  ) {
+    return invalidConfig('A persisted transport must support reconciliation.');
+  }
+  if (
     options.onDeliveryStateChange !== undefined &&
     typeof options.onDeliveryStateChange !== 'function'
   ) {

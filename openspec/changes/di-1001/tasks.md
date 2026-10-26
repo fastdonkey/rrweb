@@ -338,12 +338,12 @@ T01..T16 → T17
   - Create: `src/transport/memory.ts`
   - Modify: `src/persistence/indexeddb-outbox.ts`
   - Test: `test/transport-receipt.test.ts`
-- [ ] RED：先写“错误回执绝不删除”测试。
-- [ ] VERIFY RED：确认当前无校验器导致失败。
-- [ ] GREEN：实现最小类型和 receipt validator。
-- [ ] VERIFY GREEN：运行定向测试及类型检查。
-- [ ] REFACTOR：用 discriminated union 消除运行时歧义。
-- [ ] COMMIT：形成回执门槛提交。
+- [x] RED：先写“错误回执绝不删除”测试。
+- [x] VERIFY RED：确认当前无校验器导致失败。
+- [x] GREEN：实现最小类型和 receipt validator。
+- [x] VERIFY GREEN：运行定向测试及类型检查。
+- [x] REFACTOR：用 discriminated union 消除运行时歧义。
+- [x] COMMIT：形成回执门槛提交。
 
 ### Task 12: dispatchOutbox_transientFailure_schedulesRecovery
 

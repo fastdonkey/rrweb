@@ -216,9 +216,13 @@ export class RecordingBatcher {
 
   private ensureTimer(): void {
     if (this.timer !== undefined) return;
-    this.timer = setTimeout(() => {
+    this.timer = setTimeout(async () => {
       this.timer = undefined;
-      void this.flush('interval').catch(() => undefined);
+      try {
+        await this.flush('interval');
+      } catch (_error) {
+        return;
+      }
     }, this.flushIntervalMs);
   }
 

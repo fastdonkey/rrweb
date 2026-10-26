@@ -21,12 +21,6 @@ export type SDKResult<T = void> =
   | { ok: true; value: T }
   | { ok: false; error: { code: SDKErrorCode; message: string } };
 
-export interface Transport {
-  readonly name: string;
-  readonly capability: 'test-only' | 'persisted-receipt-v1';
-  send(batch: unknown, context: unknown): Promise<unknown>;
-}
-
 export interface DeliveryStateSnapshot {
   state: 'idle' | 'sending' | 'backoff' | 'reconciling' | 'blocked';
   capacityLevel: 'normal' | 'warning' | 'critical' | 'full';
@@ -107,3 +101,15 @@ export interface DataInsightsClient {
   getDebugInfo(): Readonly<DebugInfo>;
   destroy(): Promise<SDKResult>;
 }
+import type { Transport } from '../transport/types';
+
+export type {
+  PersistedReceipt,
+  PersistedReceiptTransport,
+  ReconciliationResult,
+  SequenceRange,
+  TestTransport,
+  Transport,
+  TransportContext,
+  TransportResult,
+} from '../transport/types';
