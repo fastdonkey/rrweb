@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-10-25
+goal: 低侵入扩展 rrweb 并保持后续上游升级能力
+skip_specs: true
