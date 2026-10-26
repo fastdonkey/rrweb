@@ -132,12 +132,12 @@ T01..T16 → T17
   - Create: `src/consent/consent-manager.ts`
   - Modify: `src/index.ts`
   - Test: `test/lifecycle.test.ts`
-- [ ] RED：先写授权门禁和状态迁移失败测试。
-- [ ] VERIFY RED：确认状态机尚未实现导致预期失败。
-- [ ] GREEN：实现最小 Controller/状态机。
-- [ ] VERIFY GREEN：运行定向测试。
-- [ ] REFACTOR：消除重复转换并保持状态转移显式。
-- [ ] COMMIT：形成授权生命周期提交。
+- [x] RED：先写授权门禁和状态迁移失败测试。
+- [x] VERIFY RED：确认状态机尚未实现导致预期失败。
+- [x] GREEN：实现最小 Controller/状态机。
+- [x] VERIFY GREEN：运行定向测试。
+- [x] REFACTOR：消除重复转换并保持状态转移显式。
+- [x] COMMIT：形成授权生命周期提交。
 
 ### Task 04: manageIdentity_hostOrAnonymous_preservesPrivacy
 
