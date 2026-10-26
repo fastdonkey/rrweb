@@ -1,0 +1,50 @@
+{
+  "name": "@datainsights/browser-sdk",
+  "version": "0.1.0",
+  "description": "DataInsights browser recording SDK built on rrweb",
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "dev": "vite build --watch",
+    "check-types": "tsc --noEmit",
+    "prepublish": "tsc --noEmit && vite build",
+    "test": "vitest run"
+  },
+  "main": "./dist/datainsights-browser-sdk.cjs",
+  "module": "./dist/datainsights-browser-sdk.js",
+  "unpkg": "./dist/datainsights-browser-sdk.umd.cjs",
+  "jsdelivr": "./umd/datainsights-browser-sdk.js",
+  "typings": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/datainsights-browser-sdk.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/datainsights-browser-sdk.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "umd",
+    "package.json"
+  ],
+  "sideEffects": false,
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "vite": "^6.0.1",
+    "vite-plugin-dts": "^3.9.1",
+    "vitest": "^1.6.1"
+  },
+  "dependencies": {
+    "@rrweb/record": "^2.2.0",
+    "@rrweb/types": "^2.2.0",
+    "@rrweb/utils": "^2.2.0"
+  }
+}

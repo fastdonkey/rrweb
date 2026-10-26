@@ -81,12 +81,12 @@ T01..T16 → T17
   - Create: `packages/datainsights-browser-sdk/vite.config.ts`
   - Create: `packages/datainsights-browser-sdk/src/index.ts`
   - Test: `packages/datainsights-browser-sdk/test/package-entry.test.ts`
-- [ ] RED：先写 package import/exports 测试。
-- [ ] VERIFY RED：确认因包或导出尚不存在而失败。
-- [ ] GREEN：创建最小包骨架和构建入口。
-- [ ] VERIFY GREEN：运行定向测试及 `prepublish`。
-- [ ] REFACTOR：对齐仓库已有 Vite/package 约定。
-- [ ] COMMIT：形成仅含包骨架的可审查提交。
+- [x] RED：先写 package import/exports 测试。
+- [x] VERIFY RED：确认因包或导出尚不存在而失败。
+- [x] GREEN：创建最小包骨架和构建入口。
+- [x] VERIFY GREEN：运行定向测试及 `prepublish`。
+- [x] REFACTOR：对齐仓库已有 Vite/package 约定。
+- [x] COMMIT：形成仅含包骨架的可审查提交。
 
 ### Task 02: validateConfig_unsafeOptions_rejectsWithoutSideEffects
 
