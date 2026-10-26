@@ -32,8 +32,11 @@ function isTrustedCollectorUrl(value: unknown): value is string {
   if (typeof value !== 'string' || value.length > 2048) return false;
   try {
     const url = new URL(value);
+    const localHttp =
+      url.protocol === 'http:' &&
+      (url.hostname === '127.0.0.1' || url.hostname === 'localhost');
     return (
-      url.protocol === 'https:' &&
+      (url.protocol === 'https:' || localHttp) &&
       !url.username &&
       !url.password &&
       url.search === '' &&
@@ -44,12 +47,37 @@ function isTrustedCollectorUrl(value: unknown): value is string {
   }
 }
 
+function normalizeTrustedOrigin(value: string): string | undefined {
+  try {
+    const url = new URL(value);
+    const localHttp =
+      url.protocol === 'http:' &&
+      (url.hostname === '127.0.0.1' || url.hostname === 'localhost');
+    if (
+      (url.protocol !== 'https:' && !localHttp) ||
+      url.username ||
+      url.password ||
+      url.pathname !== '/' ||
+      url.search ||
+      url.hash
+    ) {
+      return undefined;
+    }
+    return url.origin;
+  } catch (_error) {
+    return undefined;
+  }
+}
+
 function validateRemoteConfig(
   appKey: string,
   value: unknown,
   now: number,
 ): SDKResult<Readonly<ResolvedApplicationConfig>> {
-  if (!isRecord(value) || !Object.keys(value).every((key) => CONFIG_KEYS.has(key))) {
+  if (
+    !isRecord(value) ||
+    !Object.keys(value).every((key) => CONFIG_KEYS.has(key))
+  ) {
     return invalidConfig();
   }
   if (value.enabled === false) {
@@ -105,8 +133,20 @@ export async function resolveRemoteConfig(
   appKey: string,
   options: RemoteConfigResolverOptions = {},
 ): Promise<SDKResult<Readonly<ResolvedApplicationConfig>>> {
-  const origin = resolveConfigOrigin(appKey);
-  if (!origin.ok) return origin;
+  const routeOrigin = resolveConfigOrigin(appKey);
+  if (!routeOrigin.ok) return routeOrigin;
+  const configuredOrigin = options.trustedConfigOrigin
+    ? normalizeTrustedOrigin(options.trustedConfigOrigin)
+    : routeOrigin.value;
+  if (!configuredOrigin) {
+    return {
+      ok: false,
+      error: {
+        code: 'APP_KEY_ROUTE_UNSUPPORTED',
+        message: 'The application key route is not supported.',
+      },
+    };
+  }
 
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
   if (typeof fetchImpl !== 'function') {
@@ -121,7 +161,7 @@ export async function resolveRemoteConfig(
 
   try {
     const response = await fetchImpl(
-      `${origin.value}/sdk/config?appKey=${encodeURIComponent(appKey)}`,
+      `${configuredOrigin}/sdk/config?appKey=${encodeURIComponent(appKey)}`,
       {
         method: 'GET',
         credentials: 'omit',

@@ -30,6 +30,7 @@ import {
 import { isUnconfiguredTransport } from '../transport/unconfigured';
 import type {
   ConsentEvidence,
+  DataInsightsBootstrapOptions,
   DataInsightsClient,
   DataInsightsOptions,
   RecordingContext,
@@ -45,6 +46,7 @@ import { LifecycleStateMachine } from './state-machine';
 import { SessionManager } from '../session/session-manager';
 import { ActivityTracker } from './activity-tracker';
 import { ResourceRegistry } from './resource-registry';
+import { installBootstrap } from './bootstrap';
 
 const PERSISTENCE_CAPACITY_BYTES = 100 * 1024 * 1024;
 
@@ -67,6 +69,21 @@ function equivalentConfig(
     left.debug === right.debug &&
     JSON.stringify(left.privacy) === JSON.stringify(right.privacy) &&
     JSON.stringify(left.batching) === JSON.stringify(right.batching)
+  );
+}
+
+function equivalentBootstrap(
+  left: Readonly<DataInsightsBootstrapOptions>,
+  right: Readonly<DataInsightsBootstrapOptions>,
+): boolean {
+  return (
+    left.appKey === right.appKey &&
+    left.consent.startSelector === right.consent.startSelector &&
+    left.consent.noticeVersion === right.consent.noticeVersion &&
+    left.resolveUserId === right.resolveUserId &&
+    left.onDeliveryStateChange === right.onDeliveryStateChange &&
+    left.debug === right.debug &&
+    JSON.stringify(left.privacy) === JSON.stringify(right.privacy)
   );
 }
 
@@ -94,6 +111,9 @@ export function createClient(): DataInsightsClient {
   let drainPromise: Promise<boolean> | undefined;
   let serializer: WorkerFirstSerializer | undefined;
   let journalDisposers: Array<() => void> = [];
+  let bootstrapOptions: Readonly<DataInsightsBootstrapOptions> | undefined;
+  let bootstrapPromise: Promise<SDKResult<DataInsightsClient>> | undefined;
+  let disposeBootstrap: (() => void) | undefined;
 
   function activeBatchContext(): RecordingBatchContext | undefined {
     const consent = consentManager.currentEvidence;
@@ -202,8 +222,15 @@ export function createClient(): DataInsightsClient {
       for (const [recordingId, hash] of nextBatchHashes) {
         previousBatchHashes.set(recordingId, hash);
       }
-      await outboxDispatcher.dispatch('manual');
-      const pending = await outbox.list();
+      const firstDispatch = await outboxDispatcher.dispatch('manual');
+      let pending = await outbox.list();
+      // A startup dispatch can still be reading an empty Outbox while the
+      // first recording batch is committed. Run once more after that flight
+      // completes so stop/flush cannot strand a newly durable batch.
+      if (firstDispatch.state === 'idle' && pending.length > 0) {
+        await outboxDispatcher.dispatch('manual');
+        pending = await outbox.list();
+      }
       diagnostics.updatePending(
         pending.length,
         pending.reduce((total, batch) => total + batch.bytes, 0),
@@ -260,6 +287,57 @@ export function createClient(): DataInsightsClient {
       sessionManager = new SessionManager(validation.value.appKey);
       state.transition('initialized');
       return { ok: true, value: client };
+    },
+
+    bootstrap(candidate) {
+      if (state.state === 'destroyed') {
+        return Promise.resolve(
+          failure('DESTROYED', 'The SDK instance has been destroyed.'),
+        );
+      }
+      if (bootstrapOptions) {
+        return Promise.resolve(
+          equivalentBootstrap(bootstrapOptions, candidate)
+            ? { ok: true, value: client }
+            : failure(
+                'ALREADY_INITIALIZED_WITH_DIFFERENT_CONFIG',
+                'The SDK is already initialized with different configuration.',
+              ),
+        );
+      }
+      if (bootstrapPromise) return bootstrapPromise;
+      if (state.state !== 'uninitialized') {
+        return Promise.resolve(
+          failure(
+            'ALREADY_INITIALIZED_WITH_DIFFERENT_CONFIG',
+            'The SDK is already initialized through the advanced API.',
+          ),
+        );
+      }
+      state.transition('configuring');
+      bootstrapPromise = installBootstrap(client, candidate, {
+        recordError: (code) => diagnostics.recordError(code),
+      })
+        .then((installed): SDKResult<DataInsightsClient> => {
+          if (!installed.ok) {
+            state.transition('uninitialized');
+            return installed;
+          }
+          bootstrapOptions = Object.freeze(candidate);
+          disposeBootstrap = installed.value.dispose;
+          return { ok: true, value: client };
+        })
+        .catch(() => {
+          state.transition('uninitialized');
+          return failure(
+            'REMOTE_CONFIG_FAILED',
+            'The application configuration could not be prepared.',
+          );
+        })
+        .finally(() => {
+          bootstrapPromise = undefined;
+        });
+      return bootstrapPromise;
     },
 
     consent: {
@@ -399,6 +477,10 @@ export function createClient(): DataInsightsClient {
             },
           });
           outboxDispatcher.start();
+          // Finish the startup Outbox scan before rrweb can create the first
+          // new batch. This prevents a later stop/flush from joining an
+          // earlier empty scan and leaving the first durable batch stranded.
+          await outboxDispatcher.dispatch('startup');
           const activeDispatcher = outboxDispatcher;
           resources.add(() => activeDispatcher.destroy());
           serializer = createWorkerFirstSerializer(options?.workerUrl);
@@ -535,7 +617,22 @@ export function createClient(): DataInsightsClient {
       recorder?.stop();
       recorder = undefined;
       await journal?.flush();
-      const drained = await drainJournal('stop');
+      let drained = await drainJournal('stop');
+      if (outbox && outboxDispatcher) {
+        let pendingAtStop = await outbox.list();
+        if (pendingAtStop.length > 0) {
+          const finalDispatch = await outboxDispatcher.dispatch('manual');
+          pendingAtStop = await outbox.list();
+          drained =
+            drained &&
+            finalDispatch.state === 'idle' &&
+            pendingAtStop.length === 0;
+          diagnostics.updatePending(
+            pendingAtStop.length,
+            pendingAtStop.reduce((total, batch) => total + batch.bytes, 0),
+          );
+        }
+      }
       outboxDispatcher?.destroy();
       outboxDispatcher = undefined;
       for (const dispose of journalDisposers) dispose();
@@ -581,6 +678,8 @@ export function createClient(): DataInsightsClient {
       if (state.state === 'recording' || state.state === 'starting') {
         await client.stop();
       }
+      disposeBootstrap?.();
+      disposeBootstrap = undefined;
       activityTracker?.stop();
       recorder?.stop();
       outboxDispatcher?.destroy();

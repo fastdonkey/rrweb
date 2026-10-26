@@ -550,12 +550,12 @@ T01..T16 → T17
 - Verify: `yarn workspace @datainsights/browser-sdk vitest run test/bootstrap.test.ts test/script-tag.integration.test.ts`
 - Dependencies: T18、T19、T03、T15。
 - Files: `src/runtime/bootstrap.ts`、`src/runtime/client.ts`、`src/runtime/state-machine.ts`、`src/browser-entry.ts`、`test/bootstrap.test.ts`。
-- [ ] RED
-- [ ] VERIFY RED
-- [ ] GREEN
-- [ ] VERIFY GREEN
-- [ ] REFACTOR
-- [ ] COMMIT
+- [x] RED
+- [x] VERIFY RED
+- [x] GREEN
+- [x] VERIFY GREEN
+- [x] REFACTOR
+- [x] COMMIT
 
 ### Task 21: probeIndexedDb_runtimeFailure_failsClosed
 

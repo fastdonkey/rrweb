@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>DataInsights Simplified Bootstrap</title>
+    <script src="/v1/datainsights-browser-sdk.js"></script>
+  </head>
+  <body>
+    <main>
+      <p>投保过程操作、页面行为将被记录留存，用于销售可回溯、纠纷核验。</p>
+      <label>投保人<input id="bootstrap-policy-holder" /></label>
+      <label>密码<input id="bootstrap-password" type="password" /></label>
+      <button id="start-insurance">开始投保</button>
+    </main>
+    <script>
+      window.__BOOTSTRAP_RESULT__ = window.DataInsights.bootstrap({
+        appKey: 'di_t_cn1_LOCALDEMO1',
+        consent: {
+          startSelector: '#start-insurance',
+          noticeVersion: 'insurance-notice-v1',
+        },
+        resolveUserId: () => 'local-policy-user',
+      });
+    </script>
+  </body>
+</html>

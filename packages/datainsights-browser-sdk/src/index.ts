@@ -2,6 +2,7 @@ import { createClient } from './runtime/client';
 
 export type {
   DataInsightsClient,
+  DataInsightsBootstrapOptions,
   DataInsightsOptions,
   DebugInfo,
   DeliveryStateSnapshot,

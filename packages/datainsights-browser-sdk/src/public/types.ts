@@ -64,6 +64,25 @@ export interface RemoteConfigResolverOptions {
   readonly fetchImpl?: typeof fetch;
   readonly signal?: AbortSignal;
   readonly now?: () => number;
+  /** Internal SDK-script origin for private/local deployments; not a host integration option. */
+  readonly trustedConfigOrigin?: string;
+}
+
+export interface DataInsightsBootstrapOptions {
+  readonly appKey: string;
+  readonly consent: {
+    readonly startSelector: string;
+    readonly noticeVersion: string;
+  };
+  readonly resolveUserId?: () =>
+    | string
+    | undefined
+    | Promise<string | undefined>;
+  readonly onDeliveryStateChange?: (
+    state: Readonly<DeliveryStateSnapshot>,
+  ) => void;
+  readonly privacy?: DataInsightsOptions['privacy'];
+  readonly debug?: boolean;
 }
 
 export interface ConsentEvidence {
@@ -98,6 +117,7 @@ export type StopReason =
 export interface DebugInfo {
   state:
     | 'uninitialized'
+    | 'configuring'
     | 'initialized'
     | 'authorized'
     | 'starting'
@@ -117,6 +137,9 @@ export interface DebugInfo {
 
 export interface DataInsightsClient {
   init(options: DataInsightsOptions): SDKResult<DataInsightsClient>;
+  bootstrap(
+    options: DataInsightsBootstrapOptions,
+  ): Promise<SDKResult<DataInsightsClient>>;
   consent: {
     grant(evidence: ConsentEvidence): SDKResult;
     revoke(): Promise<SDKResult>;

@@ -124,7 +124,7 @@ git commit -m "feat(sdk): add resolved http transport"
 - 测试：`packages/datainsights-browser-sdk/test/bootstrap.test.ts`
 - 测试：`packages/datainsights-browser-sdk/test/script-tag.integration.test.ts`
 
-- [ ] **步骤 1：编写授权前零采集和点击后启动测试**
+- [x] **步骤 1：编写授权前零采集和点击后启动测试**
 
 ```ts
 const result = await DataInsights.bootstrap({
@@ -140,23 +140,23 @@ await waitFor(() => DataInsights.getDebugInfo().state === 'recording');
 
 同时覆盖：selector 不存在、重复 bootstrap、配置失败、应用停用、`resolveUserId` 抛错、按钮重复点击和 destroy 后监听器释放。
 
-- [ ] **步骤 2：运行测试并确认 RED**
+- [x] **步骤 2：运行测试并确认 RED**
 
 运行：`yarn workspace @datainsights/browser-sdk vitest run test/bootstrap.test.ts test/script-tag.integration.test.ts`
 
 预期：FAIL，`bootstrap()` 尚不存在。
 
-- [ ] **步骤 3：实现 Bootstrap 编排**
+- [x] **步骤 3：实现 Bootstrap 编排**
 
 `bootstrap()` 顺序固定为：校验基础参数 → 解析 AppKey 路由 → 获取并校验远程配置 → 推导同目录 Worker URL → 创建 HTTP Transport → 调用现有 `init()` → 注册一次 click listener。click listener 内调用 `consent.grant({ noticeVersion, action: 'start-insurance' })`，解析可选 userId 后调用 `start()`；所有异步失败只进入本地诊断，不阻断宿主 click。
 
-- [ ] **步骤 4：运行浏览器测试和类型检查**
+- [x] **步骤 4：运行浏览器测试和类型检查**
 
 运行：`yarn workspace @datainsights/browser-sdk vitest run test/bootstrap.test.ts test/script-tag.integration.test.ts && yarn workspace @datainsights/browser-sdk check-types`
 
 预期：PASS；授权前没有 IndexedDB、Worker、rrweb 或 Collector 请求。
 
-- [ ] **步骤 5：提交**
+- [x] **步骤 5：提交**
 
 ```bash
 git add packages/datainsights-browser-sdk/src/runtime packages/datainsights-browser-sdk/src/browser-entry.ts packages/datainsights-browser-sdk/src/public/types.ts packages/datainsights-browser-sdk/test/bootstrap.test.ts packages/datainsights-browser-sdk/test/script-tag.integration.test.ts

@@ -4,7 +4,15 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 
 import * as puppeteer from 'puppeteer';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import { build } from 'vite';
 
 vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
@@ -31,15 +39,18 @@ describe('DataInsights Script Tag', () => {
   let server: Server;
   let origin: string;
   let browser: puppeteer.Browser;
+  let deliveredBatches: any[] = [];
 
   beforeAll(async () => {
     await build({ configFile: path.resolve(packageRoot, 'vite.config.ts') });
-    const [html, bundle, workerBundle] = await Promise.all([
+    const [html, bootstrapHtml, bundle, workerBundle] = await Promise.all([
       readFile(fixturePath),
+      readFile(path.resolve(__dirname, 'html/bootstrap.html')),
       readFile(bundlePath),
       readFile(path.resolve(packageRoot, 'dist/serialization.worker.js')),
     ]);
-    server = createServer((request, response) => {
+    server = createServer(async (request, response) => {
+      const requestUrl = new URL(request.url ?? '/', 'http://localhost');
       if (request.url === '/v1/datainsights-browser-sdk.js') {
         response.setHeader('Content-Type', 'text/javascript; charset=utf-8');
         response.end(bundle);
@@ -48,6 +59,68 @@ describe('DataInsights Script Tag', () => {
       if (request.url === '/v1/serialization.worker.js') {
         response.setHeader('Content-Type', 'text/javascript; charset=utf-8');
         response.end(workerBundle);
+        return;
+      }
+      if (requestUrl.pathname === '/sdk/config') {
+        response.setHeader('Content-Type', 'application/json');
+        response.end(
+          JSON.stringify({
+            appKey: requestUrl.searchParams.get('appKey'),
+            enabled: true,
+            configVersion: 'local-1',
+            collectorUrls: [origin],
+            uploadToken: 'local-short-lived-token',
+            expiresAt: '2099-01-01T00:00:00.000Z',
+          }),
+        );
+        return;
+      }
+      if (requestUrl.pathname === '/api/events' && request.method === 'POST') {
+        const chunks: Buffer[] = [];
+        for await (const chunk of request) chunks.push(Buffer.from(chunk));
+        const batch = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        deliveredBatches.push(batch);
+        response.setHeader('Content-Type', 'application/json');
+        response.end(
+          JSON.stringify({
+            status: 'accepted',
+            receipt: {
+              persisted: true,
+              batchId: batch.batchId,
+              recordingId: batch.recordingId,
+              sequenceStart: batch.sequenceStart,
+              sequenceEnd: batch.sequenceEnd,
+              contentHash: batch.contentHash,
+            },
+          }),
+        );
+        return;
+      }
+      if (
+        requestUrl.pathname.startsWith('/api/recordings/') &&
+        requestUrl.pathname.endsWith('/delivery-state')
+      ) {
+        const recordingId = requestUrl.pathname.split('/')[3];
+        const matching = deliveredBatches.filter(
+          (batch) => batch.recordingId === recordingId,
+        );
+        response.setHeader('Content-Type', 'application/json');
+        response.end(
+          JSON.stringify({
+            recordingId,
+            contiguousSequenceEnd: Math.max(
+              0,
+              ...matching.map((batch) => batch.sequenceEnd),
+            ),
+            missingRanges: [],
+            checkedAt: new Date().toISOString(),
+          }),
+        );
+        return;
+      }
+      if (requestUrl.pathname === '/bootstrap.html') {
+        response.setHeader('Content-Type', 'text/html; charset=utf-8');
+        response.end(bootstrapHtml);
         return;
       }
       if (request.url === '/csp.html') {
@@ -69,6 +142,10 @@ describe('DataInsights Script Tag', () => {
         : undefined,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
+  });
+
+  beforeEach(() => {
+    deliveredBatches = [];
   });
 
   afterAll(async () => {
@@ -262,6 +339,92 @@ describe('DataInsights Script Tag', () => {
     }, firstRecordingId);
     expect(recovered).toContain('before-reload-marker');
     expect(recovered).toContain('proposal-form');
+    await page.close();
+  });
+
+  it('bootstraps from AppKey configuration and records only after the host button click', async () => {
+    const page = await browser.newPage();
+    const requestedUrls: string[] = [];
+    page.on('request', (request) => requestedUrls.push(request.url()));
+    await page.goto(`${origin}/bootstrap.html`, { waitUntil: 'networkidle0' });
+    await page.waitForFunction(async () => {
+      const result = await (window as any).__BOOTSTRAP_RESULT__;
+      return result?.ok === true;
+    });
+
+    expect(
+      await page.evaluate(
+        () => (window as any).DataInsights.getDebugInfo().state,
+      ),
+    ).toBe('initialized');
+    expect(deliveredBatches).toHaveLength(0);
+
+    await page.click('#start-insurance');
+    await page.waitForFunction(
+      () => (window as any).DataInsights.getDebugInfo().state === 'recording',
+    );
+    await page.type('#bootstrap-policy-holder', '本地真实投保人');
+    await page.type('#bootstrap-password', 'NeverRecordBootstrapPassword!');
+    const stopResult = await page.evaluate(() =>
+      (window as any).DataInsights.stop('completed'),
+    );
+    const postStop = await page.evaluate(async () => {
+      const request = indexedDB.open('datainsights-recorder-v1');
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      const transaction = database.transaction(
+        ['journal', 'outbox'],
+        'readonly',
+      );
+      const readAll = (store: string) =>
+        new Promise<unknown[]>((resolve, reject) => {
+          const pending = transaction.objectStore(store).getAll();
+          pending.onsuccess = () => resolve(pending.result);
+          pending.onerror = () => reject(pending.error);
+        });
+      const [journal, outbox] = await Promise.all([
+        readAll('journal'),
+        readAll('outbox'),
+      ]);
+      database.close();
+      return {
+        debug: (window as any).DataInsights.getDebugInfo(),
+        journal,
+        outbox,
+      };
+    });
+
+    expect(
+      stopResult,
+      JSON.stringify({ stopResult, requestedUrls, postStop }),
+    ).toMatchObject({ ok: true });
+    expect(
+      requestedUrls,
+      JSON.stringify({ requestedUrls, postStop }),
+    ).toContain(`${origin}/api/events`);
+    await vi.waitFor(() => expect(deliveredBatches).toHaveLength(1), {
+      timeout: 5_000,
+    });
+    expect(
+      postStop.journal.filter(
+        (record: any) => record.appKey === 'di_t_cn1_LOCALDEMO1',
+      ),
+    ).toEqual([]);
+    expect(
+      postStop.outbox.filter(
+        (record: any) => record.appKey === 'di_t_cn1_LOCALDEMO1',
+      ),
+    ).toEqual([]);
+    const serialized = JSON.stringify(deliveredBatches);
+    expect(serialized).toContain('本地真实投保人');
+    expect(serialized).not.toContain('NeverRecordBootstrapPassword!');
+    expect(deliveredBatches[0]).toMatchObject({
+      appKey: 'di_t_cn1_LOCALDEMO1',
+      consent: { noticeVersion: 'insurance-notice-v1' },
+      identity: { type: 'host', id: 'local-policy-user' },
+    });
     await page.close();
   });
 

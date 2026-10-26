@@ -62,7 +62,9 @@ function parseReconciliation(
   };
 }
 
-function headers(config: Readonly<ResolvedApplicationConfig>): Record<string, string> {
+function headers(
+  config: Readonly<ResolvedApplicationConfig>,
+): Record<string, string> {
   return {
     Accept: 'application/json',
     Authorization: `Bearer ${config.uploadToken}`,
@@ -138,7 +140,9 @@ class ResolvedHttpTransport implements PersistedReceiptTransport {
     for (const collector of this.config.collectorUrls) {
       try {
         const response = await this.fetchImpl(
-          `${collector}/api/recordings/${encodeURIComponent(recordingId)}/delivery-state`,
+          `${collector}/api/recordings/${encodeURIComponent(
+            recordingId,
+          )}/delivery-state`,
           {
             method: 'GET',
             headers: headers(this.config),
@@ -172,7 +176,7 @@ class ResolvedHttpTransport implements PersistedReceiptTransport {
 
 export function createHttpTransport(
   config: Readonly<ResolvedApplicationConfig>,
-  fetchImpl: typeof fetch = globalThis.fetch,
+  fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis),
 ): PersistedReceiptTransport {
   return new ResolvedHttpTransport(config, fetchImpl);
 }

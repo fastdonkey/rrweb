@@ -34,7 +34,7 @@ function hasOnlyKeys(
   return Object.keys(value).every((key) => allowed.has(key));
 }
 
-function isValidSelector(selector: unknown): selector is string {
+export function isValidSelector(selector: unknown): selector is string {
   if (
     typeof selector !== 'string' ||
     selector.length === 0 ||

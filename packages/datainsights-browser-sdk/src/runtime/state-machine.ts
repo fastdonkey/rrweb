@@ -1,5 +1,6 @@
 export type LifecycleState =
   | 'uninitialized'
+  | 'configuring'
   | 'initialized'
   | 'authorized'
   | 'starting'
@@ -10,7 +11,8 @@ export type LifecycleState =
 
 const TRANSITIONS: Readonly<Record<LifecycleState, readonly LifecycleState[]>> =
   {
-    uninitialized: ['initialized', 'destroyed'],
+    uninitialized: ['configuring', 'initialized', 'destroyed'],
+    configuring: ['uninitialized', 'initialized', 'destroyed'],
     initialized: ['authorized', 'destroyed'],
     authorized: ['initialized', 'starting', 'destroyed'],
     starting: ['authorized', 'recording', 'destroyed'],
