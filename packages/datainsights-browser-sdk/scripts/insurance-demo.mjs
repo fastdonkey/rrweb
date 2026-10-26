@@ -1,0 +1,246 @@
+import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { build as esbuild } from 'esbuild';
+import { build as viteBuild } from 'vite';
+
+const scriptPath = fileURLToPath(import.meta.url);
+const packageRoot = path.resolve(path.dirname(scriptPath), '..');
+const repositoryRoot = path.resolve(packageRoot, '../..');
+const exampleRoot = path.resolve(packageRoot, 'examples/insurance-product');
+const TEST_APP_KEY = 'di_t_cn1_LOCALDEMO1';
+
+const contentType = (pathname) => {
+  if (pathname.endsWith('.js')) return 'text/javascript; charset=utf-8';
+  if (pathname.endsWith('.css')) return 'text/css; charset=utf-8';
+  if (pathname.endsWith('.json')) return 'application/json; charset=utf-8';
+  return 'text/html; charset=utf-8';
+};
+
+const listen = (server, port) =>
+  new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(port, '127.0.0.1', () => {
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        reject(new Error('The local demo server did not expose a TCP port.'));
+        return;
+      }
+      resolve(address.port);
+    });
+  });
+
+const closeServer = (server) =>
+  new Promise((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve())),
+  );
+
+async function prepareAssets() {
+  await viteBuild({ configFile: path.resolve(packageRoot, 'vite.config.ts') });
+  const replayEntry = path.resolve(
+    repositoryRoot,
+    'packages/rrweb/src/replay/index.ts',
+  );
+  const typesEntry = path.resolve(
+    repositoryRoot,
+    'packages/types/src/index.ts',
+  );
+  const result = await esbuild({
+    stdin: {
+      contents: `export { Replayer } from ${JSON.stringify(
+        replayEntry,
+      )}; export { ReplayerEvents } from ${JSON.stringify(typesEntry)};`,
+      loader: 'ts',
+      resolveDir: repositoryRoot,
+    },
+    bundle: true,
+    format: 'iife',
+    globalName: 'rrweb',
+    loader: { '.css': 'empty' },
+    platform: 'browser',
+    target: 'es2017',
+    write: false,
+  });
+  return Buffer.from(result.outputFiles[0].contents);
+}
+
+async function readAssets(rrwebBundle) {
+  const entries = await Promise.all(
+    [
+      ['/gp/99440765', path.resolve(exampleRoot, 'index.html')],
+      ['/insurance/styles.css', path.resolve(exampleRoot, 'styles.css')],
+      ['/insurance/app.js', path.resolve(exampleRoot, 'app.js')],
+      ['/insurance/replay.html', path.resolve(exampleRoot, 'replay.html')],
+      [
+        '/sdk/datainsights-browser-sdk.js',
+        path.resolve(packageRoot, 'umd/datainsights-browser-sdk.js'),
+      ],
+      [
+        '/sdk/serialization.worker.js',
+        path.resolve(packageRoot, 'dist/serialization.worker.js'),
+      ],
+    ].map(async ([route, filename]) => [route, await readFile(filename)]),
+  );
+  return new Map([...entries, ['/rrweb.js', rrwebBundle]]);
+}
+
+async function readJsonBody(request) {
+  const chunks = [];
+  let bytes = 0;
+  for await (const chunk of request) {
+    bytes += chunk.length;
+    if (bytes > 8 * 1024 * 1024) throw new Error('Request body is too large.');
+    chunks.push(Buffer.from(chunk));
+  }
+  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+}
+
+function sendJson(response, status, value) {
+  response.statusCode = status;
+  response.setHeader('Content-Type', 'application/json; charset=utf-8');
+  response.setHeader('Cache-Control', 'no-store');
+  response.end(JSON.stringify(value));
+}
+
+export async function startInsuranceDemoServer(options = {}) {
+  const rrwebBundle =
+    options.buildAssets === false
+      ? await readFile(
+          path.resolve(repositoryRoot, 'packages/rrweb/umd/rrweb.js'),
+        )
+      : await prepareAssets();
+  const assets = await readAssets(rrwebBundle);
+  const recordings = new Map();
+  let origin = '';
+
+  const server = createServer(async (request, response) => {
+    try {
+      const url = new URL(request.url ?? '/', 'http://127.0.0.1');
+      const pathname = url.pathname;
+      response.setHeader('X-Content-Type-Options', 'nosniff');
+      response.setHeader('Referrer-Policy', 'no-referrer');
+
+      if (pathname === '/favicon.ico') {
+        response.statusCode = 204;
+        response.end();
+        return;
+      }
+      if (pathname === '/') {
+        response.statusCode = 302;
+        response.setHeader('Location', '/gp/99440765');
+        response.end();
+        return;
+      }
+      if (pathname === '/sdk/config' && request.method === 'GET') {
+        if (url.searchParams.get('appKey') !== TEST_APP_KEY) {
+          sendJson(response, 404, { error: 'unknown_application' });
+          return;
+        }
+        sendJson(response, 200, {
+          appKey: TEST_APP_KEY,
+          enabled: true,
+          configVersion: 'local-insurance-v1',
+          collectorUrls: [origin],
+          uploadToken: 'local-short-lived-demo-token',
+          expiresAt: '2099-01-01T00:00:00.000Z',
+        });
+        return;
+      }
+      if (pathname === '/api/events' && request.method === 'POST') {
+        const batch = await readJsonBody(request);
+        const existing = recordings.get(batch.recordingId) ?? [];
+        if (
+          !existing.some((candidate) => candidate.batchId === batch.batchId)
+        ) {
+          existing.push(batch);
+          existing.sort(
+            (left, right) => left.sequenceStart - right.sequenceStart,
+          );
+          recordings.set(batch.recordingId, existing);
+        }
+        sendJson(response, 200, {
+          status: 'accepted',
+          receipt: {
+            persisted: true,
+            batchId: batch.batchId,
+            recordingId: batch.recordingId,
+            sequenceStart: batch.sequenceStart,
+            sequenceEnd: batch.sequenceEnd,
+            contentHash: batch.contentHash,
+          },
+        });
+        return;
+      }
+      const deliveryMatch = pathname.match(
+        /^\/api\/recordings\/([^/]+)\/delivery-state$/,
+      );
+      if (deliveryMatch && request.method === 'GET') {
+        const recordingId = decodeURIComponent(deliveryMatch[1]);
+        const batches = recordings.get(recordingId) ?? [];
+        sendJson(response, 200, {
+          recordingId,
+          contiguousSequenceEnd: Math.max(
+            0,
+            ...batches.map((batch) => batch.sequenceEnd),
+          ),
+          missingRanges: [],
+          checkedAt: new Date().toISOString(),
+        });
+        return;
+      }
+      if (pathname === '/recordings' && request.method === 'GET') {
+        sendJson(
+          response,
+          200,
+          [...recordings.entries()].map(([recordingId, batches]) => ({
+            recordingId,
+            batches,
+          })),
+        );
+        return;
+      }
+      if (/^\/replay\/[^/]+$/.test(pathname) && request.method === 'GET') {
+        response.setHeader('Content-Type', 'text/html; charset=utf-8');
+        response.setHeader('Cache-Control', 'no-store');
+        response.end(assets.get('/insurance/replay.html'));
+        return;
+      }
+      const asset = assets.get(pathname);
+      if (asset && request.method === 'GET') {
+        response.setHeader('Content-Type', contentType(pathname));
+        response.setHeader('Cache-Control', 'no-store');
+        response.end(asset);
+        return;
+      }
+      response.statusCode = 404;
+      response.end('not found');
+    } catch (_error) {
+      sendJson(response, 400, { error: 'invalid_local_demo_request' });
+    }
+  });
+
+  const port = await listen(server, options.port ?? 0);
+  origin = `http://127.0.0.1:${port}`;
+  return Object.freeze({
+    origin,
+    recordings,
+    close: () => closeServer(server),
+  });
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === scriptPath) {
+  const demo = await startInsuranceDemoServer({
+    port: Number(process.env.DATAINSIGHTS_DEMO_PORT ?? 4173),
+  });
+  process.stdout.write(
+    `DataInsights insurance demo: ${demo.origin}/gp/99440765\nRecordings: ${demo.origin}/recordings\n`,
+  );
+  const shutdown = async () => {
+    await demo.close();
+    process.exit(0);
+  };
+  process.once('SIGINT', () => void shutdown());
+  process.once('SIGTERM', () => void shutdown());
+}

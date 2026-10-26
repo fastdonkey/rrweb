@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DataInsights 本地保险回放</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 20px;
+        color: #17324d;
+        background: #eef3f7;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 20px;
+      }
+      #status {
+        color: #60798b;
+      }
+      #replay-root {
+        min-height: 720px;
+        overflow: auto;
+        border-radius: 14px;
+        background: white;
+        box-shadow: 0 8px 30px #14354b18;
+      }
+    </style>
+    <script src="/rrweb.js"></script>
+  </head>
+  <body>
+    <header>
+      <h1>本地保险投保回放</h1>
+      <span id="status">正在加载…</span>
+    </header>
+    <div id="replay-root"></div>
+    <script>
+      window.__REPLAY_READY__ = false;
+      window.__REPLAY_FINISHED__ = false;
+      window.__REPLAY_SCRIPT_EXECUTED__ = false;
+
+      async function startReplay() {
+        const recordingId = decodeURIComponent(
+          location.pathname.split('/').pop(),
+        );
+        const recordings = await fetch('/recordings').then((response) =>
+          response.json(),
+        );
+        const recording = recordings.find(
+          (item) => item.recordingId === recordingId,
+        );
+        if (!recording) throw new Error('Recording not found.');
+        const events = recording.batches
+          .slice()
+          .sort((left, right) => left.sequenceStart - right.sequenceStart)
+          .flatMap((batch) => batch.events);
+        if (!events.length) throw new Error('Recording has no replay events.');
+        const replayer = new rrweb.Replayer(events, {
+          root: document.querySelector('#replay-root'),
+          showWarning: false,
+          showDebug: false,
+          skipInactive: true,
+          speed: 8,
+        });
+        replayer.on(rrweb.ReplayerEvents.FullsnapshotRebuilded, () => {
+          window.__REPLAY_READY__ = true;
+          document.querySelector('#status').textContent = '正在回放';
+        });
+        replayer.on(rrweb.ReplayerEvents.Finish, () => {
+          window.__REPLAY_FINISHED__ = true;
+          document.querySelector('#status').textContent = '回放完成';
+        });
+        replayer.play(0);
+      }
+
+      startReplay().catch((error) => {
+        window.__REPLAY_ERROR__ = String(error);
+        document.querySelector('#status').textContent = '回放失败';
+      });
+    </script>
+  </body>
+</html>

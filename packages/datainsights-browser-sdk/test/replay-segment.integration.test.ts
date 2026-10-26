@@ -1,17 +1,19 @@
 import { createServer, type Server } from 'node:http';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
 import path from 'node:path';
+import { promisify } from 'node:util';
 
 import * as puppeteer from 'puppeteer';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { build } from 'vite';
 
 vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
 
 const packageRoot = path.resolve(__dirname, '..');
 const repositoryRoot = path.resolve(packageRoot, '../..');
 const fixtureRoot = path.resolve(__dirname, 'fixtures');
+const execFileAsync = promisify(execFile);
 
 async function listen(server: Server): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -33,9 +35,16 @@ describe('sandboxed segment replay', () => {
   let origin: string;
 
   beforeAll(async () => {
-    await build({
-      root: path.resolve(repositoryRoot, 'packages/rrweb'),
-      configFile: path.resolve(repositoryRoot, 'packages/rrweb/vite.config.js'),
+    const rrwebRoot = path.resolve(repositoryRoot, 'packages/rrweb');
+    // vite-plugin-dts/API Extractor resolves the package tsconfig from cwd.
+    // A child process can use the rrweb package cwd even when Vitest runs this
+    // suite in a worker, where process.chdir() is intentionally unavailable.
+    await execFileAsync(path.resolve(repositoryRoot, 'node_modules/.bin/vite'), [
+      'build',
+    ], {
+      cwd: rrwebRoot,
+      env: { ...process.env, TURBO_TELEMETRY_DISABLED: '1' },
+      maxBuffer: 10 * 1024 * 1024,
     });
     const assets = new Map<string, Buffer>([
       [

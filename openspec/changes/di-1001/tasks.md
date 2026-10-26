@@ -588,13 +588,13 @@ T01..T16 → T17
   - 提供 `demo:insurance` 和 `test:insurance-e2e` 命令。
 - Verify: `yarn workspace @datainsights/browser-sdk vitest run test/insurance-product.e2e.test.ts test/replay-segment.integration.test.ts`
 - Dependencies: T20、T21、T16。
-- Files: `examples/insurance-product/`、`scripts/insurance-demo.mjs`、`test/insurance-product.e2e.test.ts`、`package.json`。
-- [ ] RED
-- [ ] VERIFY RED
-- [ ] GREEN
-- [ ] VERIFY GREEN
-- [ ] REFACTOR
-- [ ] COMMIT
+- Files: `examples/insurance-product/`、`scripts/insurance-demo.mjs`、`test/insurance-product.e2e.test.ts`、`test/replay-segment.integration.test.ts`、`package.json`。
+- [x] RED
+- [x] VERIFY RED
+- [x] GREEN
+- [x] VERIFY GREEN
+- [x] REFACTOR
+- [x] COMMIT
 
 ### Task 23: verifySimplifiedIntegration_fullRegression_evidenceComplete
 

@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>安心守护医疗险｜DataInsights 本地测试</title>
+    <link rel="stylesheet" href="/insurance/styles.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <div class="hero__badge">DataInsights 本地去生产化测试页</div>
+      <p class="hero__eyebrow">安心守护 · 百万医疗保障</p>
+      <h1>给家人一份从容的医疗保障</h1>
+      <p class="hero__summary">
+        一般医疗、重大疾病与住院津贴，按需组合保障计划。
+      </p>
+      <div class="hero__price">
+        <strong id="hero-price">18.00</strong><span>元起 / 月</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="card highlights" aria-labelledby="highlight-title">
+        <h2 id="highlight-title">保障亮点</h2>
+        <div class="highlight-grid">
+          <article><strong>600 万</strong><span>年度累计保额</span></article>
+          <article><strong>0 免赔</strong><span>重大疾病医疗</span></article>
+          <article><strong>不限社保</strong><span>合理医疗费用</span></article>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="plan-title">
+        <h2 id="plan-title">选择保障计划</h2>
+        <div class="plan-grid" role="radiogroup" aria-label="保障计划">
+          <button
+            class="plan is-selected"
+            id="plan-basic"
+            data-plan="basic"
+            role="radio"
+            aria-checked="true"
+          >
+            <span>基础版</span><strong>¥18 / 月</strong
+            ><small>一般医疗 200 万</small>
+          </button>
+          <button
+            class="plan"
+            id="plan-premium"
+            data-plan="premium"
+            role="radio"
+            aria-checked="false"
+          >
+            <span>尊享版</span><strong>¥32 / 月</strong
+            ><small>一般医疗 600 万</small>
+          </button>
+        </div>
+        <button class="text-button" id="coverage-details" type="button">
+          查看完整保障责任
+        </button>
+      </section>
+
+      <section class="card process" aria-labelledby="process-title">
+        <h2 id="process-title">投保流程</h2>
+        <ol>
+          <li>
+            <span>1</span>
+            <div>
+              <strong>填写信息</strong><small>确认投保人与被保人信息</small>
+            </div>
+          </li>
+          <li>
+            <span>2</span>
+            <div>
+              <strong>健康告知</strong><small>如实完成健康情况确认</small>
+            </div>
+          </li>
+          <li>
+            <span>3</span>
+            <div>
+              <strong>确认投保</strong><small>核对保障与支付信息</small>
+            </div>
+          </li>
+        </ol>
+      </section>
+
+      <section class="card notice" aria-labelledby="notice-title">
+        <h2 id="notice-title">投保须知</h2>
+        <p>
+          本页面仅用于 DataInsights SDK
+          的本地研发验证，不代表真实保险产品，不连接任何生产服务。
+        </p>
+        <p class="recording-notice">
+          投保过程操作、页面行为将被记录留存，用于销售可回溯、纠纷核验。
+        </p>
+      </section>
+
+      <section
+        class="card application"
+        id="application"
+        hidden
+        aria-labelledby="application-title"
+      >
+        <h2 id="application-title">填写投保信息</h2>
+        <form id="policy-form">
+          <label
+            >投保人姓名<input
+              id="policy-holder-name"
+              name="name"
+              autocomplete="off"
+              required
+          /></label>
+          <label
+            >手机号码<input
+              id="policy-holder-phone"
+              name="phone"
+              inputmode="tel"
+              autocomplete="off"
+              required
+          /></label>
+          <label
+            >证件号码<input
+              id="policy-holder-id"
+              name="idNumber"
+              autocomplete="off"
+              required
+          /></label>
+          <label
+            >保额<input
+              id="insured-amount"
+              name="amount"
+              inputmode="numeric"
+              autocomplete="off"
+              required
+          /></label>
+          <label
+            >服务密码（隐私保护验证）<input
+              id="service-password"
+              name="password"
+              type="password"
+              autocomplete="new-password"
+          /></label>
+          <button class="primary in-form" id="submit-policy" type="submit">
+            提交投保信息
+          </button>
+        </form>
+        <div id="application-success" class="success" hidden>
+          投保信息已提交，等待本地审核。
+        </div>
+      </section>
+    </main>
+
+    <div
+      class="modal"
+      id="coverage-modal"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="coverage-modal-title"
+    >
+      <div class="modal__panel">
+        <button
+          id="close-coverage-modal"
+          class="modal__close"
+          type="button"
+          aria-label="关闭"
+        >
+          ×
+        </button>
+        <h2 id="coverage-modal-title">保障责任详情</h2>
+        <dl>
+          <dt>一般医疗</dt>
+          <dd>住院、特殊门诊及门诊手术费用。</dd>
+          <dt>重大疾病医疗</dt>
+          <dd>约定重大疾病合理医疗费用。</dd>
+        </dl>
+      </div>
+    </div>
+
+    <footer class="sticky-action">
+      <div>
+        <small>当前计划</small
+        ><strong id="selected-plan-label">基础版 · ¥18/月</strong>
+      </div>
+      <button class="primary" id="start-insurance" type="button">
+        开始投保
+      </button>
+    </footer>
+
+    <script src="/sdk/datainsights-browser-sdk.js"></script>
+    <script src="/insurance/app.js"></script>
+  </body>
+</html>

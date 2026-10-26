@@ -9,8 +9,10 @@
   "scripts": {
     "dev": "vite build --watch",
     "check-types": "tsc --noEmit",
+    "demo:insurance": "node scripts/insurance-demo.mjs",
     "prepublish": "tsc --noEmit && vite build",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:insurance-e2e": "vitest run test/insurance-product.e2e.test.ts"
   },
   "main": "./dist/datainsights-browser-sdk.cjs",
   "module": "./dist/datainsights-browser-sdk.js",

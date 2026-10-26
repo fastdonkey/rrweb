@@ -225,19 +225,20 @@ git commit -m "feat(sdk): gate recording on indexeddb capability"
 - 创建：`packages/datainsights-browser-sdk/examples/insurance-product/replay.html`
 - 创建：`packages/datainsights-browser-sdk/scripts/insurance-demo.mjs`
 - 创建：`packages/datainsights-browser-sdk/test/insurance-product.e2e.test.ts`
+- 修改：`packages/datainsights-browser-sdk/test/replay-segment.integration.test.ts`
 - 修改：`packages/datainsights-browser-sdk/package.json`
 
-- [ ] **步骤 1：编写本地网络和真实回放 E2E 测试**
+- [x] **步骤 1：编写本地网络和真实回放 E2E 测试**
 
 测试启动本地 server、真实 SDK UMD/Worker 和 rrweb UMD，使用移动端 viewport。请求监听器遇到非 `127.0.0.1`/`localhost` 地址立即使测试失败。流程必须执行方案切换、滚动、开始投保、姓名/手机号/证件号/金额/密码输入、提交、stop，并从本地 Collector 读取实际批次。
 
-- [ ] **步骤 2：运行测试并确认 RED**
+- [x] **步骤 2：运行测试并确认 RED**
 
 运行：`yarn workspace @datainsights/browser-sdk vitest run test/insurance-product.e2e.test.ts`
 
 预期：FAIL，本地页面和 demo server 尚不存在。
 
-- [ ] **步骤 3：实现去生产化保险页面与本地服务**
+- [x] **步骤 3：实现去生产化保险页面与本地服务**
 
 页面参考指定公开产品页的移动端长页面、保障计划、价格卡片、保障详情、告知弹窗和底部“开始投保”入口，不包含众安生产脚本、接口、Cookie、Fingerprint、监控或外链。`insurance-demo.mjs` 提供：
 
@@ -252,7 +253,7 @@ GET  /replay/:recordingId
 
 Collector 在进程内按 recordingId 保存批次并返回完全匹配的 `persisted: true` 回执；只绑定 `127.0.0.1`，退出时清理内存数据。
 
-- [ ] **步骤 4：验证录制内容和真实回放**
+- [x] **步骤 4：验证录制内容和真实回放**
 
 断言批次包含普通姓名、计划切换和提交事件，不包含密码测试值；Outbox 在精确回执后清空；Replay 页面使用 `sandbox="allow-same-origin"` 且实际重建刚才录制的产品页文本。
 
@@ -260,7 +261,7 @@ Collector 在进程内按 recordingId 保存批次并返回完全匹配的 `pers
 
 预期：PASS。
 
-- [ ] **步骤 5：增加人工演示命令并提交**
+- [x] **步骤 5：增加人工演示命令并提交**
 
 `package.json` 增加：
 
