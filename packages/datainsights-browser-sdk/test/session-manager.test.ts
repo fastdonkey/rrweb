@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { IDBFactory } from 'fake-indexeddb';
 
 type Result<T = void> =
   | { ok: true; value: T }
@@ -73,6 +74,14 @@ async function freshClient(): Promise<SessionClient> {
   return DataInsights as unknown as SessionClient;
 }
 
+async function waitForAdditionalTimer(previousCount: number): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (vi.getTimerCount() > previousCount) return;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
+  throw new Error('BroadcastChannel claim timer was not scheduled');
+}
+
 function authorize(client: SessionClient): void {
   client.init({ appKey: 'insurance-h5', transport });
   client.consent.grant({
@@ -83,9 +92,17 @@ function authorize(client: SessionClient): void {
 
 describe('Session lifecycle', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
+    vi.useFakeTimers({
+      toFake: [
+        'Date',
+        'setTimeout',
+        'clearTimeout',
+        'setInterval',
+        'clearInterval',
+      ],
+    });
     vi.setSystemTime(new Date('2026-10-26T00:00:00.000Z'));
-    vi.stubGlobal('indexedDB', {});
+    vi.stubGlobal('indexedDB', new IDBFactory());
     vi.stubGlobal('localStorage', createStorage());
     vi.stubGlobal('sessionStorage', createStorage());
     vi.stubGlobal('window', new EventTarget());
@@ -122,7 +139,9 @@ describe('Session lifecycle', () => {
 
     const refreshedPage = await freshClient();
     authorize(refreshedPage);
+    const timerCount = vi.getTimerCount();
     const pending = refreshedPage.start();
+    await waitForAdditionalTimer(timerCount);
     await vi.advanceTimersByTimeAsync(25);
     const refreshed = await pending;
 
@@ -141,7 +160,9 @@ describe('Session lifecycle', () => {
 
     const secondTab = await freshClient();
     authorize(secondTab);
+    const timerCount = vi.getTimerCount();
     const pending = secondTab.start();
+    await waitForAdditionalTimer(timerCount);
     await vi.advanceTimersByTimeAsync(25);
     const second = await pending;
 

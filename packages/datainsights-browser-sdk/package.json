@@ -37,6 +37,7 @@
   "sideEffects": false,
   "license": "MIT",
   "devDependencies": {
+    "fake-indexeddb": "^6.0.0",
     "typescript": "^5.4.5",
     "vite": "^6.0.1",
     "vite-plugin-dts": "^3.9.1",

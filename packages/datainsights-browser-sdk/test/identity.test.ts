@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { IDBFactory } from 'fake-indexeddb';
 
 type Result<T = void> =
   | { ok: true; value: T }
@@ -76,7 +77,7 @@ describe('identity lifecycle', () => {
     const client = await freshClient();
     const storage = createStorage();
     vi.stubGlobal('localStorage', storage);
-    vi.stubGlobal('indexedDB', {});
+    vi.stubGlobal('indexedDB', new IDBFactory());
     client.init({ appKey: 'insurance-h5', transport });
     grant(client);
 
@@ -96,7 +97,7 @@ describe('identity lifecycle', () => {
     const client = await freshClient();
     const storage = createStorage();
     vi.stubGlobal('localStorage', storage);
-    vi.stubGlobal('indexedDB', {});
+    vi.stubGlobal('indexedDB', new IDBFactory());
     client.init({ appKey: 'insurance-h5', transport });
     grant(client);
 
@@ -116,7 +117,7 @@ describe('identity lifecycle', () => {
     const client = await freshClient();
     const storage = createStorage();
     vi.stubGlobal('localStorage', storage);
-    vi.stubGlobal('indexedDB', {});
+    vi.stubGlobal('indexedDB', new IDBFactory());
     client.init({ appKey: 'insurance-h5', transport });
     grant(client);
     await client.start();

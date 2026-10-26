@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { IDBFactory } from 'fake-indexeddb';
 
 type Result<T = void> =
   | { ok: true; value: T }
@@ -72,7 +73,7 @@ describe('SDK lifecycle', () => {
   it('deduplicates concurrent starts and enters recording when ready', async () => {
     const client = await freshClient();
     const original = Object.getOwnPropertyDescriptor(globalThis, 'indexedDB');
-    const indexedDBAccess = vi.fn(() => ({}));
+    const indexedDBAccess = vi.fn(() => new IDBFactory());
     Object.defineProperty(globalThis, 'indexedDB', {
       configurable: true,
       get: indexedDBAccess,

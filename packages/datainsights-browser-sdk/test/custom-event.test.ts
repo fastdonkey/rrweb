@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { IDBFactory } from 'fake-indexeddb';
 
 type Result<T = void> =
   | { ok: true; value: T }
@@ -40,7 +41,7 @@ async function loadSanitizer(): Promise<SanitizerModule> {
 
 describe('custom events', () => {
   beforeEach(() => {
-    vi.stubGlobal('indexedDB', {});
+    vi.stubGlobal('indexedDB', new IDBFactory());
     vi.stubGlobal('localStorage', {
       getItem: () => null,
       setItem: () => undefined,

@@ -2,6 +2,11 @@ import { validateConfig } from '../config/config';
 import { ConsentManager } from '../consent/consent-manager';
 import { IdentityManager } from '../identity/identity-manager';
 import { sanitizeCustomEvent } from '../events/custom-event';
+import {
+  openRecorderDatabase,
+  type RecorderDatabase,
+} from '../persistence/database';
+import { IndexedDbJournal } from '../persistence/indexeddb-journal';
 import type {
   ConsentEvidence,
   DataInsightsClient,
@@ -51,6 +56,9 @@ export function createClient(): DataInsightsClient {
   let startPromise: Promise<SDKResult<RecordingContext>> | undefined;
   let recordingContext: RecordingContext | undefined;
   let recorder: RecorderHandle | undefined;
+  let database: RecorderDatabase | undefined;
+  let journal: IndexedDbJournal | undefined;
+  let journalDisposers: Array<() => void> = [];
 
   const client: DataInsightsClient = {
     init(candidate) {
@@ -122,15 +130,15 @@ export function createClient(): DataInsightsClient {
       startPromise = (async () => {
         try {
           await Promise.resolve();
-          const persistenceAvailable =
-            typeof globalThis.indexedDB !== 'undefined';
-          if (!persistenceAvailable) {
+          const indexedDbFactory = globalThis.indexedDB;
+          if (indexedDbFactory === undefined) {
             state.transition('authorized');
             return failure(
               'PERSISTENCE_UNAVAILABLE',
               'Durable browser storage is unavailable.',
             );
           }
+          database ??= await openRecorderDatabase(indexedDbFactory);
           const identity = identityManager?.resolve(context?.userId);
           if (!identity?.ok) {
             state.transition('authorized');
@@ -147,9 +155,21 @@ export function createClient(): DataInsightsClient {
             state.transition('authorized');
             return failure('INVALID_STATE', 'Session could not be created.');
           }
+          journal = new IndexedDbJournal({
+            database,
+            appKey: options?.appKey ?? '',
+            recordingId: recordingContext.recordingId,
+          });
+          await journal.recover();
+          if (typeof globalThis.window !== 'undefined') {
+            journalDisposers.push(journal.bindLifecycle(globalThis.window));
+          }
+          if (typeof globalThis.document !== 'undefined') {
+            journalDisposers.push(journal.bindLifecycle(globalThis.document));
+          }
           if (typeof globalThis.document !== 'undefined') {
             recorder = await startRrwebRecorder({
-              emit: () => undefined,
+              emit: (event) => void journal?.append(event),
               privacy: options?.privacy,
             });
             if (!recorder.started) {
@@ -242,6 +262,10 @@ export function createClient(): DataInsightsClient {
       activityTracker = undefined;
       recorder?.stop();
       recorder = undefined;
+      await journal?.flush();
+      for (const dispose of journalDisposers) dispose();
+      journalDisposers = [];
+      journal = undefined;
       if (segmentTimer !== undefined) clearInterval(segmentTimer);
       segmentTimer = undefined;
       sessionManager?.endRecording(_reason);
@@ -268,8 +292,14 @@ export function createClient(): DataInsightsClient {
       }
       activityTracker?.stop();
       recorder?.stop();
+      await journal?.flush();
+      for (const dispose of journalDisposers) dispose();
+      journalDisposers = [];
+      journal = undefined;
       if (segmentTimer !== undefined) clearInterval(segmentTimer);
       sessionManager?.destroy();
+      database?.close();
+      database = undefined;
       state.transition('destroyed');
       return { ok: true, value: undefined };
     },

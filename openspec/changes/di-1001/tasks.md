@@ -260,12 +260,12 @@ T01..T16 → T17
   - Modify: `src/runtime/client.ts`
   - Modify: `package.json`
   - Test: `test/indexeddb-journal.test.ts`
-- [ ] RED：先写 1 秒/20 条和崩溃恢复测试。
-- [ ] VERIFY RED：确认 Journal 缺失导致失败。
-- [ ] GREEN：实现最小 schema 和事务提交。
-- [ ] VERIFY GREEN：运行定向测试。
-- [ ] REFACTOR：封装事务与错误转换，禁止空 catch。
-- [ ] COMMIT：形成 Journal 提交。
+- [x] RED：先写 1 秒/20 条和崩溃恢复测试。
+- [x] VERIFY RED：确认 Journal 缺失导致失败。
+- [x] GREEN：实现最小 schema 和事务提交。
+- [x] VERIFY GREEN：运行定向测试。
+- [x] REFACTOR：封装事务与错误转换，禁止空 catch。
+- [x] COMMIT：形成 Journal 提交。
 
 ### Task 09: persistOutbox_atomicMove_preservesUnconfirmedBatches
 
