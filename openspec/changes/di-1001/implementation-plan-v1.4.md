@@ -79,17 +79,17 @@ git commit -m "feat(sdk): resolve trusted app key configuration"
 - 修改：`packages/datainsights-browser-sdk/src/index.ts`
 - 测试：`packages/datainsights-browser-sdk/test/http-transport.test.ts`
 
-- [ ] **步骤 1：编写持久化回执、主备切换和对账测试**
+- [x] **步骤 1：编写持久化回执、主备切换和对账测试**
 
 测试必须验证：主节点网络失败后使用备用节点；HTTP 200 但回执不匹配时返回 retryable；请求头只包含短期 Bearer token 和公开 AppKey；`reconcile(recordingId)` 使用相同受信任 Collector 列表。
 
-- [ ] **步骤 2：运行测试并确认 RED**
+- [x] **步骤 2：运行测试并确认 RED**
 
 运行：`yarn workspace @datainsights/browser-sdk vitest run test/http-transport.test.ts`
 
 预期：FAIL，标准 Transport 尚不存在。
 
-- [ ] **步骤 3：实现 Fetch Transport**
+- [x] **步骤 3：实现 Fetch Transport**
 
 ```ts
 export function createHttpTransport(
@@ -100,13 +100,13 @@ export function createHttpTransport(
 
 `send` POST 到 `${collector}/api/events`，`reconcile` GET `${collector}/api/recordings/{recordingId}/delivery-state`。只接受现有 `PersistedReceipt`/`ReconciliationResult` schema；AbortSignal 必须透传；销毁后不得发出新请求。
 
-- [ ] **步骤 4：运行定向测试和类型检查**
+- [x] **步骤 4：运行定向测试和类型检查**
 
 运行：`yarn workspace @datainsights/browser-sdk vitest run test/http-transport.test.ts test/transport-receipt.test.ts && yarn workspace @datainsights/browser-sdk check-types`
 
 预期：PASS。
 
-- [ ] **步骤 5：提交**
+- [x] **步骤 5：提交**
 
 ```bash
 git add packages/datainsights-browser-sdk/src/transport packages/datainsights-browser-sdk/src/index.ts packages/datainsights-browser-sdk/test/http-transport.test.ts

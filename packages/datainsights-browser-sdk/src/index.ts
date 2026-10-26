@@ -18,6 +18,7 @@ export type {
 
 export { parseAppKeyRoute, resolveConfigOrigin } from './config/app-key';
 export { resolveRemoteConfig } from './config/remote-config';
+export { createHttpTransport } from './transport/http';
 
 export const DataInsights = createClient();
 

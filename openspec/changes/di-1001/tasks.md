@@ -531,12 +531,12 @@ T01..T16 → T17
 - Verify: `yarn workspace @datainsights/browser-sdk vitest run test/http-transport.test.ts test/transport-receipt.test.ts`
 - Dependencies: T18、T11-T13。
 - Files: `src/transport/http.ts`、`src/transport/types.ts`、`test/http-transport.test.ts`。
-- [ ] RED
-- [ ] VERIFY RED
-- [ ] GREEN
-- [ ] VERIFY GREEN
-- [ ] REFACTOR
-- [ ] COMMIT
+- [x] RED
+- [x] VERIFY RED
+- [x] GREEN
+- [x] VERIFY GREEN
+- [x] REFACTOR
+- [x] COMMIT
 
 ### Task 20: bootstrap_startSelector_clickStartsRecording
 
