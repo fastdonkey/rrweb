@@ -106,12 +106,12 @@ T01..T16 → T17
   - Create: `src/config/config.ts`
   - Modify: `src/index.ts`
   - Test: `test/config.test.ts`
-- [ ] RED：先写配置拒绝和无副作用测试。
-- [ ] VERIFY RED：确认因校验器缺失而失败。
-- [ ] GREEN：实现最小 schema、默认值和 Result 映射。
-- [ ] VERIFY GREEN：运行定向测试。
-- [ ] REFACTOR：集中常量和错误消息脱敏。
-- [ ] COMMIT：形成配置契约提交。
+- [x] RED：先写配置拒绝和无副作用测试。
+- [x] VERIFY RED：确认因校验器缺失而失败。
+- [x] GREEN：实现最小 schema、默认值和 Result 映射。
+- [x] VERIFY GREEN：运行定向测试。
+- [x] REFACTOR：集中常量和错误消息脱敏。
+- [x] COMMIT：形成配置契约提交。
 
 ### Task 03: enforceConsent_beforeGrant_collectsNothing
 
