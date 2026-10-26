@@ -234,12 +234,12 @@ T01..T16 → T17
   - Create: `src/events/safe-clone.ts`
   - Modify: `src/runtime/client.ts`
   - Test: `test/custom-event.test.ts`
-- [ ] RED：先写 payload 攻击面和大小边界测试。
-- [ ] VERIFY RED：确认未实现校验时失败。
-- [ ] GREEN：实现最小安全克隆和校验。
-- [ ] VERIFY GREEN：运行定向测试。
-- [ ] REFACTOR：统一限制常量与错误映射。
-- [ ] COMMIT：形成自定义事件提交。
+- [x] RED：先写 payload 攻击面和大小边界测试。
+- [x] VERIFY RED：确认未实现校验时失败。
+- [x] GREEN：实现最小安全克隆和校验。
+- [x] VERIFY GREEN：运行定向测试。
+- [x] REFACTOR：统一限制常量与错误映射。
+- [x] COMMIT：形成自定义事件提交。
 
 ### Task 08: persistJournal_crashWindow_recoversChunks
 

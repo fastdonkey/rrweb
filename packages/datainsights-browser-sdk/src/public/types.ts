@@ -102,6 +102,7 @@ export interface DataInsightsClient {
   start(context?: StartContext): Promise<SDKResult<RecordingContext>>;
   identify(userId: string): SDKResult;
   clearIdentity(): SDKResult;
+  addCustomEvent(name: string, data: unknown): SDKResult;
   stop(reason?: StopReason): Promise<SDKResult>;
   getDebugInfo(): Readonly<DebugInfo>;
   destroy(): Promise<SDKResult>;

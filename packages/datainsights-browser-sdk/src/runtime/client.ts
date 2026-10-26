@@ -1,6 +1,7 @@
 import { validateConfig } from '../config/config';
 import { ConsentManager } from '../consent/consent-manager';
 import { IdentityManager } from '../identity/identity-manager';
+import { sanitizeCustomEvent } from '../events/custom-event';
 import type {
   ConsentEvidence,
   DataInsightsClient,
@@ -210,6 +211,23 @@ export function createClient(): DataInsightsClient {
         );
       }
       return identityManager.clear();
+    },
+
+    addCustomEvent(name: string, data: unknown) {
+      if (state.state === 'destroyed') {
+        return failure('DESTROYED', 'The SDK instance has been destroyed.');
+      }
+      if (state.state !== 'recording') {
+        return failure(
+          'CUSTOM_EVENT_INVALID',
+          'Custom events require an active recording.',
+        );
+      }
+      const sanitized = sanitizeCustomEvent(name, data);
+      if (!sanitized.ok) return sanitized;
+      recorder?.addCustomEvent(name, sanitized.value.data);
+      activityTracker?.markActivity();
+      return { ok: true, value: undefined };
     },
 
     async stop(_reason: StopReason = 'manual') {

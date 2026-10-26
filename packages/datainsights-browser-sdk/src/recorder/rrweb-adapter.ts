@@ -11,6 +11,7 @@ export interface RecorderAdapterInput {
 
 export interface RecorderHandle {
   readonly started: boolean;
+  addCustomEvent(name: string, data: unknown): void;
   stop(): void;
 }
 
@@ -37,7 +38,10 @@ type RecorderOptions = ReturnType<typeof buildPrivacyPolicy> & {
 };
 
 type RecordLoader = () => Promise<{
-  record(options: RecorderOptions): (() => void) | undefined;
+  record: {
+    (options: RecorderOptions): (() => void) | undefined;
+    addCustomEvent(name: string, data: unknown): void;
+  };
 }>;
 
 export function buildRecorderOptions(
@@ -77,6 +81,13 @@ export async function startRrwebRecorder(
     const stop = record(buildRecorderOptions(input));
     return {
       started: typeof stop === 'function',
+      addCustomEvent(name, data) {
+        try {
+          record.addCustomEvent(name, data);
+        } catch {
+          input.onError?.();
+        }
+      },
       stop() {
         try {
           stop?.();
@@ -87,6 +98,6 @@ export async function startRrwebRecorder(
     };
   } catch {
     input.onError?.();
-    return { started: false, stop() {} };
+    return { started: false, addCustomEvent() {}, stop() {} };
   }
 }
