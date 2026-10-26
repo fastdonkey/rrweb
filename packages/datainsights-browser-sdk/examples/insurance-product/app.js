@@ -39,14 +39,30 @@
     application.scrollIntoView({ behavior: 'auto', block: 'start' });
   });
 
-  document.querySelector('#policy-form').addEventListener('submit', (event) => {
-    event.preventDefault();
-    document.querySelector('#application-success').hidden = false;
-    window.DataInsights.addCustomEvent('policy-submit', {
-      plan: selectedPlan,
-      source: 'local-insurance-demo',
+  document
+    .querySelector('#policy-form')
+    .addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const submitButton = document.querySelector('#submit-policy');
+      submitButton.disabled = true;
+      submitButton.textContent = '正在保存录制…';
+
+      window.DataInsights.addCustomEvent('policy-submit', {
+        plan: selectedPlan,
+        source: 'local-insurance-demo',
+      });
+
+      window.__SUBMIT_RESULT__ = window.DataInsights.stop('completed');
+      const result = await window.__SUBMIT_RESULT__;
+      if (result.ok) {
+        document.querySelector('#application-success').hidden = false;
+        submitButton.textContent = '投保信息已提交';
+        return;
+      }
+
+      submitButton.disabled = false;
+      submitButton.textContent = '重新提交投保信息';
     });
-  });
 
   window.__BOOTSTRAP_RESULT__ = window.DataInsights.bootstrap({
     appKey: 'di_t_cn1_LOCALDEMO1',

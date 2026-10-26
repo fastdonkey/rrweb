@@ -85,8 +85,8 @@ describe('local insurance product recording and replay', () => {
     );
     await page.waitForSelector('#application-success:not([hidden])');
 
-    const stopResult = await page.evaluate(() =>
-      (window as any).DataInsights.stop('completed'),
+    const stopResult = await page.evaluate(
+      () => (window as any).__SUBMIT_RESULT__ ?? null,
     );
     expect(stopResult).toMatchObject({ ok: true });
 
