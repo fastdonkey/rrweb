@@ -4,6 +4,7 @@ import {
   STORES,
   transactionDone,
 } from './database';
+import type { RecordingBatchContext } from '../pipeline/batcher';
 
 const JOURNAL_WINDOW_MS = 1000;
 const JOURNAL_EVENT_LIMIT = 20;
@@ -22,12 +23,16 @@ export interface JournalChunk {
   events: unknown[];
   bytes: number;
   createdAt: number;
+  context?: Readonly<RecordingBatchContext>;
+  previousBatchHash?: string;
 }
 
 export interface JournalOptions {
   database: RecorderDatabase;
   appKey: string;
   recordingId: string;
+  context?: () => Readonly<RecordingBatchContext> | undefined;
+  previousBatchHash?: () => string | undefined;
   now?: () => number;
 }
 
@@ -35,6 +40,8 @@ export class IndexedDbJournal {
   private readonly database: RecorderDatabase;
   private readonly appKey: string;
   private readonly recordingId: string;
+  private readonly context?: () => Readonly<RecordingBatchContext> | undefined;
+  private readonly previousBatchHash?: () => string | undefined;
   private readonly now: () => number;
   private buffer: BufferedEvent[] = [];
   private nextSequence = 1;
@@ -45,6 +52,8 @@ export class IndexedDbJournal {
     this.database = options.database;
     this.appKey = options.appKey;
     this.recordingId = options.recordingId;
+    this.context = options.context;
+    this.previousBatchHash = options.previousBatchHash;
     this.now = options.now ?? Date.now;
   }
 
@@ -84,25 +93,36 @@ export class IndexedDbJournal {
   }
 
   async recover(): Promise<JournalChunk[]> {
+    const records = await this.recoverAll();
+    const chunks = records.filter(
+      (chunk) => chunk.recordingId === this.recordingId,
+    );
+    const last = chunks.at(-1);
+    if (last)
+      this.nextSequence = Math.max(this.nextSequence, last.sequenceEnd + 1);
+    return chunks;
+  }
+
+  async recoverAll(): Promise<JournalChunk[]> {
     const transaction = this.database.raw.transaction(
       STORES.journal,
       'readonly',
     );
     const completed = transactionDone(transaction);
-    const index = transaction
-      .objectStore(STORES.journal)
-      .index('byAppRecordingSequence');
-    const records = (await requestResult(index.getAll())) as JournalChunk[];
+    const records = (await requestResult(
+      transaction
+        .objectStore(STORES.journal)
+        .index('byAppKey')
+        .getAll(this.appKey),
+    )) as JournalChunk[];
     await completed;
-    const chunks = records.filter(
-      (chunk) =>
-        chunk.appKey === this.appKey && chunk.recordingId === this.recordingId,
+    records.sort(
+      (left, right) =>
+        left.createdAt - right.createdAt ||
+        left.recordingId.localeCompare(right.recordingId) ||
+        left.sequenceStart - right.sequenceStart,
     );
-    chunks.sort((left, right) => left.sequenceStart - right.sequenceStart);
-    const last = chunks.at(-1);
-    if (last)
-      this.nextSequence = Math.max(this.nextSequence, last.sequenceEnd + 1);
-    return chunks;
+    return records;
   }
 
   bindLifecycle(target: EventTarget): () => void {
@@ -141,6 +161,8 @@ export class IndexedDbJournal {
       events: payload,
       bytes: new TextEncoder().encode(JSON.stringify(payload)).byteLength,
       createdAt: this.now(),
+      context: this.context?.(),
+      previousBatchHash: this.previousBatchHash?.(),
     };
     const transaction = this.database.raw.transaction(
       STORES.journal,

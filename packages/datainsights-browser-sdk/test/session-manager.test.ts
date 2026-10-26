@@ -82,6 +82,17 @@ async function waitForAdditionalTimer(previousCount: number): Promise<void> {
   throw new Error('BroadcastChannel claim timer was not scheduled');
 }
 
+async function waitFor(
+  predicate: () => boolean | Promise<boolean>,
+  message: string,
+): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (await predicate()) return;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
+  throw new Error(message);
+}
+
 function authorize(client: SessionClient): void {
   client.init({ appKey: 'insurance-h5', transport });
   client.consent.grant({
@@ -206,6 +217,10 @@ describe('Session lifecycle', () => {
     await vi.advanceTimersByTimeAsync(15 * 60 * 1000);
     window.dispatchEvent(new Event('click'));
     await vi.advanceTimersByTimeAsync(15 * 60 * 1000);
+    await waitFor(async () => {
+      const current = await client.start();
+      return current.ok && current.value.segmentId !== first.value.segmentId;
+    }, 'Segment rotation did not finish');
     const current = await client.start();
 
     expect(client.getDebugInfo().state).toBe('recording');
@@ -220,6 +235,10 @@ describe('Session lifecycle', () => {
     await client.start();
 
     await vi.advanceTimersByTimeAsync(30 * 60 * 1000);
+    await waitFor(
+      () => client.getDebugInfo().state === 'authorized',
+      'Idle stop did not finish',
+    );
 
     expect(client.getDebugInfo().state).toBe('authorized');
   });

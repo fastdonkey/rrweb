@@ -12,6 +12,7 @@ export interface RecorderAdapterInput {
 export interface RecorderHandle {
   readonly started: boolean;
   addCustomEvent(name: string, data: unknown): void;
+  takeFullSnapshot(): void;
   stop(): void;
 }
 
@@ -41,6 +42,7 @@ type RecordLoader = () => Promise<{
   record: {
     (options: RecorderOptions): (() => void) | undefined;
     addCustomEvent(name: string, data: unknown): void;
+    takeFullSnapshot(isCheckout?: boolean): void;
   };
 }>;
 
@@ -88,6 +90,13 @@ export async function startRrwebRecorder(
           input.onError?.();
         }
       },
+      takeFullSnapshot() {
+        try {
+          record.takeFullSnapshot(true);
+        } catch {
+          input.onError?.();
+        }
+      },
       stop() {
         try {
           stop?.();
@@ -98,6 +107,11 @@ export async function startRrwebRecorder(
     };
   } catch {
     input.onError?.();
-    return { started: false, addCustomEvent() {}, stop() {} };
+    return {
+      started: false,
+      addCustomEvent() {},
+      takeFullSnapshot() {},
+      stop() {},
+    };
   }
 }

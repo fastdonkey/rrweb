@@ -7,6 +7,10 @@ export class ConsentManager {
     return this.evidence !== undefined;
   }
 
+  get currentEvidence(): Readonly<ConsentEvidence> | undefined {
+    return this.evidence;
+  }
+
   grant(evidence: ConsentEvidence): SDKResult {
     if (
       !evidence ||
@@ -25,7 +29,10 @@ export class ConsentManager {
       };
     }
 
-    this.evidence = Object.freeze({ ...evidence });
+    this.evidence = Object.freeze({
+      ...evidence,
+      grantedAt: evidence.grantedAt ?? new Date().toISOString(),
+    });
     return { ok: true, value: undefined };
   }
 

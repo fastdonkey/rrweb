@@ -32,6 +32,9 @@
   "files": [
     "dist",
     "umd",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
     "package.json"
   ],
   "sideEffects": true,

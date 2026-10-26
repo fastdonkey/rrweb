@@ -6,6 +6,7 @@ interface JournalChunk {
   sequenceStart: number;
   sequenceEnd: number;
   events: unknown[];
+  previousBatchHash?: string;
 }
 
 interface RecorderDatabase {
@@ -28,6 +29,7 @@ interface PersistenceModule {
     database: RecorderDatabase;
     appKey: string;
     recordingId: string;
+    previousBatchHash?: () => string | undefined;
   }) => Journal;
 }
 
@@ -138,6 +140,25 @@ describe('IndexedDB journal', () => {
     const chunks = await journal.recover();
     expect(chunks).toHaveLength(1);
     expect(chunks[0]).toMatchObject({ sequenceStart: 1, sequenceEnd: 20 });
+  });
+
+  it('persists the last durable batch hash for crash-safe chain recovery', async () => {
+    const persistence = await loadPersistence();
+    const database = await persistence.openRecorderDatabase();
+    connections.push(database);
+    const journal = new persistence.IndexedDbJournal({
+      database,
+      appKey: 'insurance-h5',
+      recordingId: 'recording-hash-chain',
+      previousBatchHash: () => 'persisted-batch-hash',
+    });
+
+    await journal.append({ type: 'after-ack' });
+    await journal.flush();
+
+    expect(await journal.recover()).toEqual([
+      expect.objectContaining({ previousBatchHash: 'persisted-batch-hash' }),
+    ]);
   });
 
   it('flushes on pagehide and keeps memory data when a transaction fails', async () => {

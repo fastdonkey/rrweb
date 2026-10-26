@@ -64,9 +64,12 @@ export interface RecordingBatcherOptions {
   readonly flushIntervalMs?: number;
   readonly createBatchId?: () => string;
   readonly now?: () => number;
+  readonly initialSequence?: number;
+  readonly previousBatchHash?: string;
   readonly onBatch?: (
     batch: Readonly<SealedRecordingBatch>,
   ) => void | Promise<void>;
+  readonly serialize?: (value: unknown) => Promise<SerializedValue>;
 }
 
 export class BatchEventTooLargeError extends Error {
@@ -92,6 +95,7 @@ export class RecordingBatcher {
   private readonly createBatchId: () => string;
   private readonly now: () => number;
   private readonly onBatch?: RecordingBatcherOptions['onBatch'];
+  private readonly serialize: (value: unknown) => Promise<SerializedValue>;
   private pending: unknown[] = [];
   private pendingBytes = 0;
   private nextSequence = 1;
@@ -118,6 +122,9 @@ export class RecordingBatcher {
       options.createBatchId ?? (() => generateUuid(globalThis.crypto));
     this.now = options.now ?? Date.now;
     this.onBatch = options.onBatch;
+    this.serialize = options.serialize ?? serializeBatch;
+    this.nextSequence = positiveInteger(options.initialSequence, 1);
+    this.previousBatchHash = options.previousBatchHash;
   }
 
   add(event: unknown): Promise<readonly Readonly<SealedRecordingBatch>[]> {
@@ -196,13 +203,13 @@ export class RecordingBatcher {
       reason,
       events,
     };
-    const hashInput = await serializeBatch(withoutHash);
+    const hashInput = await this.serialize(withoutHash);
     const contentHash = await sha256Hex(hashInput.bytes);
     const batch = Object.freeze({ ...withoutHash, contentHash });
     const sealed = Object.freeze({
       batch,
       hashInput,
-      serialized: await serializeBatch(batch),
+      serialized: await this.serialize(batch),
     });
 
     this.pending = [];

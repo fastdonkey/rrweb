@@ -15,7 +15,7 @@ export interface OutboxBatchDraft {
   sequenceEnd: number;
   events: unknown[];
   bytes: number;
-  createdAt: number;
+  createdAt: number | string;
   [key: string]: unknown;
 }
 
@@ -33,6 +33,13 @@ export class IndexedDbOutbox {
 
   async enqueueFromJournal(
     batch: OutboxBatchDraft,
+    journalKeys: readonly string[],
+  ): Promise<boolean> {
+    return this.enqueueManyFromJournal([batch], journalKeys);
+  }
+
+  async enqueueManyFromJournal(
+    batches: readonly OutboxBatchDraft[],
     journalKeys: readonly string[],
   ): Promise<boolean> {
     try {
@@ -59,22 +66,27 @@ export class IndexedDbOutbox {
         (total, { bytes }) => total + bytes,
         0,
       );
+      const newBytes = batches.reduce((total, batch) => total + batch.bytes, 0);
       if (
-        !Number.isFinite(batch.bytes) ||
-        batch.bytes < 0 ||
-        retainedJournalBytes + outboxBytes + batch.bytes > this.capacityBytes
+        batches.length === 0 ||
+        batches.some(
+          (batch) => !Number.isFinite(batch.bytes) || batch.bytes < 0,
+        ) ||
+        retainedJournalBytes + outboxBytes + newBytes > this.capacityBytes
       ) {
         transaction.abort();
         await completed.catch(() => undefined);
         return false;
       }
 
-      const record: OutboxRecord = {
-        ...batch,
-        key: `${this.appKey}:${batch.batchId}`,
-        appKey: this.appKey,
-      };
-      outboxStore.put(record);
+      for (const batch of batches) {
+        const record: OutboxRecord = {
+          ...batch,
+          key: `${this.appKey}:${batch.batchId}`,
+          appKey: this.appKey,
+        };
+        outboxStore.put(record);
+      }
       for (const key of journalKeys) journalStore.delete(key);
       await completed;
       return true;
@@ -98,7 +110,8 @@ export class IndexedDbOutbox {
     await completed;
     records.sort(
       (left, right) =>
-        left.createdAt - right.createdAt ||
+        new Date(left.createdAt).getTime() -
+          new Date(right.createdAt).getTime() ||
         left.sequenceStart - right.sequenceStart,
     );
     return records.map((record) => Object.freeze(record));

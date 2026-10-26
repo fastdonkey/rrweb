@@ -34,14 +34,20 @@ describe('DataInsights Script Tag', () => {
 
   beforeAll(async () => {
     await build({ configFile: path.resolve(packageRoot, 'vite.config.ts') });
-    const [html, bundle] = await Promise.all([
+    const [html, bundle, workerBundle] = await Promise.all([
       readFile(fixturePath),
       readFile(bundlePath),
+      readFile(path.resolve(packageRoot, 'dist/serialization.worker.js')),
     ]);
     server = createServer((request, response) => {
       if (request.url === '/v1/datainsights-browser-sdk.js') {
         response.setHeader('Content-Type', 'text/javascript; charset=utf-8');
         response.end(bundle);
+        return;
+      }
+      if (request.url === '/v1/serialization.worker.js') {
+        response.setHeader('Content-Type', 'text/javascript; charset=utf-8');
+        response.end(workerBundle);
         return;
       }
       if (request.url === '/csp.html') {
@@ -105,10 +111,12 @@ describe('DataInsights Script Tag', () => {
   it('records a real page after consent while excluding the password value', async () => {
     const page = await browser.newPage();
     await page.evaluateOnNewDocument(() => {
+      (window as any).__DELIVERED_BATCHES__ = [];
       (window as any).DataInsightsTransport = {
         name: 'browser-fixture',
         capability: 'test-only',
         async send(batch: any) {
+          (window as any).__DELIVERED_BATCHES__.push(batch);
           return {
             status: 'accepted',
             receipt: {
@@ -130,6 +138,11 @@ describe('DataInsights Script Tag', () => {
       return sdk.start({ userId: 'policy-user-1' });
     });
     expect(startResult.ok, JSON.stringify(startResult)).toBe(true);
+    expect(
+      await page.evaluate(
+        () => (window as any).DataInsights.getDebugInfo().workerFallback,
+      ),
+    ).toBe(false);
     await page.type('#policy-holder', '普通投保人');
     await page.type('#password', 'NeverRecordThisPassword!');
     await page.click('#submit-policy');
@@ -146,18 +159,109 @@ describe('DataInsights Script Tag', () => {
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
       });
-      const transaction = database.transaction('journal', 'readonly');
-      const getAll = transaction.objectStore('journal').getAll();
-      const records = await new Promise<unknown[]>((resolve, reject) => {
-        getAll.onsuccess = () => resolve(getAll.result);
-        getAll.onerror = () => reject(getAll.error);
-      });
+      const transaction = database.transaction(
+        ['journal', 'outbox'],
+        'readonly',
+      );
+      const readAll = (store: string) =>
+        new Promise<unknown[]>((resolve, reject) => {
+          const request = transaction.objectStore(store).getAll();
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+      const [journal, outbox] = await Promise.all([
+        readAll('journal'),
+        readAll('outbox'),
+      ]);
       database.close();
-      return JSON.stringify(records);
+      return {
+        journal,
+        outbox,
+        delivered: (window as any).__DELIVERED_BATCHES__,
+        serializedJournal: JSON.stringify(journal),
+        serializedDelivery: JSON.stringify(
+          (window as any).__DELIVERED_BATCHES__,
+        ),
+      };
     });
-    expect(persisted).toContain('普通投保人');
-    expect(persisted).toContain('policy-submit');
-    expect(persisted).not.toContain('NeverRecordThisPassword!');
+    expect(persisted.delivered).toHaveLength(1);
+    expect(persisted.delivered[0]).toMatchObject({
+      schemaVersion: '1.0',
+      sequenceStart: 1,
+      contentHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      events: expect.any(Array),
+    });
+    expect(persisted.serializedDelivery).toContain('普通投保人');
+    expect(persisted.serializedDelivery).toContain('policy-submit');
+    expect(persisted.serializedDelivery).not.toContain(
+      'NeverRecordThisPassword!',
+    );
+    expect(persisted.journal).toEqual([]);
+    expect(persisted.outbox).toEqual([]);
+    await page.close();
+  });
+
+  it('recovers a previous Recording journal after a page reload', async () => {
+    const page = await browser.newPage();
+    await page.evaluateOnNewDocument(() => {
+      (window as any).__DELIVERED_BATCHES__ = [];
+      (window as any).DataInsightsTransport = {
+        name: 'reload-recovery-fixture',
+        capability: 'test-only',
+        async send(batch: any) {
+          (window as any).__DELIVERED_BATCHES__.push(batch);
+          return {
+            status: 'accepted',
+            receipt: {
+              persisted: true,
+              batchId: batch.batchId,
+              recordingId: batch.recordingId,
+              sequenceStart: batch.sequenceStart,
+              sequenceEnd: batch.sequenceEnd,
+              contentHash: batch.contentHash,
+            },
+          };
+        },
+      };
+    });
+    await page.goto(`${origin}/script-tag.html`, { waitUntil: 'networkidle0' });
+    const firstRecordingId = await page.evaluate(async () => {
+      const sdk = (window as any).DataInsights;
+      sdk.consent.grant({ noticeVersion: 'v1', action: 'start-insurance' });
+      const started = await sdk.start({ userId: 'reload-user' });
+      return started.value.recordingId;
+    });
+    await page.type('#policy-holder', '刷新前投保人');
+    await page.evaluate(() =>
+      (window as any).DataInsights.addCustomEvent('before-reload-marker', {
+        step: 'proposal-form',
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 1_200));
+
+    await page.reload({ waitUntil: 'networkidle0' });
+    await page.evaluate(async () => {
+      const sdk = (window as any).DataInsights;
+      sdk.consent.grant({ noticeVersion: 'v1', action: 'start-insurance' });
+      await sdk.start({ userId: 'reload-user' });
+    });
+    await page.waitForFunction(
+      (recordingId) =>
+        (window as any).__DELIVERED_BATCHES__.some(
+          (batch: any) => batch.recordingId === recordingId,
+        ),
+      { timeout: 8_000 },
+      firstRecordingId,
+    );
+
+    const recovered = await page.evaluate((recordingId) => {
+      const batches = (window as any).__DELIVERED_BATCHES__.filter(
+        (batch: any) => batch.recordingId === recordingId,
+      );
+      return JSON.stringify(batches);
+    }, firstRecordingId);
+    expect(recovered).toContain('before-reload-marker');
+    expect(recovered).toContain('proposal-form');
     await page.close();
   });
 

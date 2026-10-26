@@ -1,0 +1,3 @@
+DataInsights Browser SDK includes and builds upon rrweb, licensed under the MIT License.
+
+The package uses only public rrweb package entry points. DI-1001 introduces no rrweb core source patch.

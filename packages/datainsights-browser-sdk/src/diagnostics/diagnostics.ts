@@ -3,6 +3,7 @@ import type {
   DeliveryStateSnapshot,
   SDKErrorCode,
 } from '../public/types';
+import { BUILD_INFO } from '../build-info';
 
 const MAX_RECENT_ERRORS = 20;
 
@@ -73,6 +74,7 @@ export class DiagnosticsStore {
   }): Readonly<DebugInfo> {
     return Object.freeze({
       state: input.lifecycleState,
+      ...BUILD_INFO,
       delivery: this.deliveryState,
       resourceCount: input.resourceCount,
       hasHostIdentity: input.hasHostIdentity,

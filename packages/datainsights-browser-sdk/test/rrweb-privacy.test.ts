@@ -20,6 +20,7 @@ interface RecorderAdapterModule {
     loadRecord?: () => Promise<never>,
   ) => Promise<{
     started: boolean;
+    takeFullSnapshot(): void;
     stop(): void;
   }>;
 }
@@ -113,5 +114,27 @@ describe('rrweb privacy adapter', () => {
 
     expect(recorder.started).toBe(false);
     expect(onError).toHaveBeenCalledOnce();
+  });
+
+  it('exposes a guarded full snapshot checkpoint for segment rotation', async () => {
+    const adapter = await loadAdapter();
+    if (!adapter) throw new Error('rrweb adapter is unavailable');
+    const takeFullSnapshot = vi.fn();
+    const onError = vi.fn();
+    const recorder = await adapter.startRrwebRecorder(
+      { emit: () => undefined, onError },
+      async () =>
+        ({
+          record: Object.assign(() => () => undefined, {
+            addCustomEvent: vi.fn(),
+            takeFullSnapshot,
+          }),
+        } as never),
+    );
+
+    recorder.takeFullSnapshot();
+
+    expect(takeFullSnapshot).toHaveBeenCalledWith(true);
+    expect(onError).not.toHaveBeenCalled();
   });
 });

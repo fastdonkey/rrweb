@@ -32,6 +32,7 @@ export interface DeliveryStateSnapshot {
 export interface DataInsightsOptions {
   appKey: string;
   transport: Transport;
+  workerUrl?: string;
   onDeliveryStateChange?: (state: Readonly<DeliveryStateSnapshot>) => void;
   privacy?: {
     blockSelector?: string;
@@ -85,6 +86,9 @@ export interface DebugInfo {
     | 'stopping'
     | 'degraded'
     | 'destroyed';
+  readonly sdkVersion: string;
+  readonly rrwebVersion: string;
+  readonly rrwebCommit: string;
   readonly delivery: Readonly<DeliveryStateSnapshot>;
   readonly resourceCount: number;
   readonly hasHostIdentity: boolean;

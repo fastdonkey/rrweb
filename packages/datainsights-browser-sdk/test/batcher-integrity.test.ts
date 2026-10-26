@@ -7,6 +7,7 @@ import {
 } from '../src/pipeline/batcher';
 import {
   canonicalSerialize,
+  createWorkerFirstSerializer,
   serializeBatch,
   serializeBatchSync,
 } from '../src/pipeline/serializer';
@@ -102,14 +103,22 @@ describe('RecordingBatcher integrity', () => {
   it('seals pending events after the interval', async () => {
     vi.useFakeTimers();
     const emitted: string[] = [];
+    let resolveEmission!: () => void;
+    const emission = new Promise<void>((resolve) => {
+      resolveEmission = resolve;
+    });
     const batcher = new RecordingBatcher(context, {
       flushIntervalMs: 5_000,
       createBatchId: () => 'batch-interval',
-      onBatch: (sealed) => emitted.push(sealed.batch.reason),
+      onBatch: (sealed) => {
+        emitted.push(sealed.batch.reason);
+        resolveEmission();
+      },
     });
     await batcher.add({ event: 'waiting' });
 
     await vi.advanceTimersByTimeAsync(5_000);
+    await emission;
 
     expect(emitted).toEqual(['interval']);
     batcher.destroy();
@@ -152,5 +161,34 @@ describe('RecordingBatcher integrity', () => {
     const sync = serializeBatchSync(value);
     const worker = serializeInWorker({ id: 'request-1', value });
     expect(worker).toEqual({ id: 'request-1', result: sync });
+  });
+
+  it('uses an external Worker when available and falls back synchronously when creation fails', async () => {
+    class FakeWorker extends EventTarget {
+      postMessage(request: { id: string; value: unknown }) {
+        queueMicrotask(() =>
+          this.dispatchEvent(
+            new MessageEvent('message', { data: serializeInWorker(request) }),
+          ),
+        );
+      }
+      terminate() {}
+    }
+    const worker = createWorkerFirstSerializer('/serialization.worker.js', {
+      createWorker: () => new FakeWorker() as unknown as Worker,
+    });
+    const fallback = createWorkerFirstSerializer('/blocked-worker.js', {
+      createWorker: () => {
+        throw new Error('CSP blocked worker');
+      },
+    });
+    const value = { z: 2, a: 1 };
+
+    expect(await worker.serialize(value)).toEqual(serializeBatchSync(value));
+    expect(worker.usingFallback).toBe(false);
+    expect(await fallback.serialize(value)).toEqual(serializeBatchSync(value));
+    expect(fallback.usingFallback).toBe(true);
+    worker.destroy();
+    fallback.destroy();
   });
 });

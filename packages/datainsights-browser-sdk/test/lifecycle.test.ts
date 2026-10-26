@@ -16,7 +16,11 @@ interface TestClient {
   ): Promise<Result<Record<string, unknown>>>;
   stop(): Promise<Result>;
   destroy(): Promise<Result>;
-  getDebugInfo(): { state: string };
+  getDebugInfo(): {
+    state: string;
+    resourceCount?: number;
+    workerFallback?: boolean;
+  };
 }
 
 const transport = {
@@ -117,6 +121,34 @@ describe('SDK lifecycle', () => {
     } finally {
       if (original) Object.defineProperty(globalThis, 'indexedDB', original);
     }
+  });
+
+  it('releases prepared resources when rrweb cannot start', async () => {
+    const failingRecord = Object.assign(() => undefined, {
+      addCustomEvent: vi.fn(),
+      takeFullSnapshot: vi.fn(),
+    });
+    vi.doMock('@rrweb/record', () => ({ record: failingRecord }));
+    vi.stubGlobal('indexedDB', new IDBFactory());
+    vi.stubGlobal('window', new EventTarget());
+    vi.stubGlobal('document', new EventTarget());
+    const client = await freshClient();
+    client.init({ appKey: 'insurance-h5', transport });
+    grant(client);
+
+    expect(await client.start()).toEqual({
+      ok: false,
+      error: { code: 'RECORDER_START_FAILED', message: expect.any(String) },
+    });
+    expect(client.getDebugInfo()).toMatchObject({
+      state: 'authorized',
+      resourceCount: 0,
+      workerFallback: false,
+    });
+
+    await client.destroy();
+    vi.doUnmock('@rrweb/record');
+    vi.unstubAllGlobals();
   });
 
   it('keeps stop and revoke idempotent', async () => {

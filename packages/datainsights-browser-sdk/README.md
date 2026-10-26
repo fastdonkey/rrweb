@@ -45,6 +45,12 @@ connect-src 'self' https://ingest.example.com;
 
 Worker 加载失败时 SDK 使用等价的同步序列化降级路径。不要依赖 `blob:` Worker，也不要把 `latest` URL 用于生产。
 
+## 可靠投递边界
+
+rrweb 事件先以 1 秒或 20 条的窗口写入 IndexedDB Journal，再原子转入 Outbox。只有 Transport 返回字段完全匹配且 `persisted: true` 的回执时才删除 Outbox。页面刷新后，新 Recording 会按 appKey 先恢复上一个 Recording 未组批的 Journal；长录制切换 segment 时显式生成 rrweb 全量快照。
+
+上送仍受浏览器清理站点数据、存储驱逐、同源 XSS 和页面被强制终止等边界影响，因此 SDK 承诺“分层尽可能不丢失”，不宣称绝对零丢失。生产 Transport 必须由后续受审的服务端持久化实现提供。
+
 ## 录制与回放对象边界
 
 | 对象                    | 所属层             | 职责                                                                |

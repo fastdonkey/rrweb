@@ -28,6 +28,13 @@ function currentScriptAppKey(): string | undefined {
   return appKey || undefined;
 }
 
+function currentScriptWorkerUrl(): string | undefined {
+  if (typeof document === 'undefined') return undefined;
+  const script = document.currentScript;
+  if (!(script instanceof HTMLScriptElement)) return undefined;
+  return script.dataset.workerUrl?.trim() || undefined;
+}
+
 const existing =
   typeof window === 'undefined' ? undefined : window.DataInsights;
 const facade = isFacade(existing) ? existing : defaultClient;
@@ -36,6 +43,7 @@ const appKey = currentScriptAppKey();
 if (appKey && facade.getDebugInfo().state === 'uninitialized') {
   facade.init({
     appKey,
+    workerUrl: currentScriptWorkerUrl(),
     transport:
       typeof window === 'undefined'
         ? UNCONFIGURED_TRANSPORT

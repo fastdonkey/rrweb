@@ -3,6 +3,7 @@ import type { DataInsightsOptions, SDKResult } from '../public/types';
 const ROOT_KEYS = new Set([
   'appKey',
   'transport',
+  'workerUrl',
   'onDeliveryStateChange',
   'privacy',
   'batching',
@@ -95,7 +96,7 @@ export function validateConfig(options: unknown): ValidationResult {
     return invalidConfig('Configuration contains unsupported fields.');
   }
 
-  const { appKey, transport, privacy, batching } = options;
+  const { appKey, transport, workerUrl, privacy, batching } = options;
   if (
     typeof appKey !== 'string' ||
     appKey.length === 0 ||
@@ -118,6 +119,15 @@ export function validateConfig(options: unknown): ValidationResult {
     typeof transport.reconcile !== 'function'
   ) {
     return invalidConfig('A persisted transport must support reconciliation.');
+  }
+  if (
+    workerUrl !== undefined &&
+    (typeof workerUrl !== 'string' ||
+      workerUrl.length === 0 ||
+      workerUrl.length > 2048 ||
+      /^(?:blob|data|javascript):/i.test(workerUrl))
+  ) {
+    return invalidConfig('Worker URL is invalid.');
   }
   if (
     options.onDeliveryStateChange !== undefined &&
