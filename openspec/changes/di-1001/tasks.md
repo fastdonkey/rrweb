@@ -286,12 +286,12 @@ T01..T16 → T17
   - Modify: `src/persistence/database.ts`
   - Test: `test/indexeddb-outbox.test.ts`
   - Test: `test/dispatcher-lease.test.ts`
-- [ ] RED：先写原子迁移和租约竞争测试。
-- [ ] VERIFY RED：确认 Outbox/lease 缺失导致失败。
-- [ ] GREEN：实现最小原子事务、索引和租约。
-- [ ] VERIFY GREEN：运行两个定向测试。
-- [ ] REFACTOR：集中容量估算和 lease 时钟。
-- [ ] COMMIT：形成 Outbox 提交。
+- [x] RED：先写原子迁移和租约竞争测试。
+- [x] VERIFY RED：确认 Outbox/lease 缺失导致失败。
+- [x] GREEN：实现最小原子事务、索引和租约。
+- [x] VERIFY GREEN：运行两个定向测试。
+- [x] REFACTOR：集中容量估算和 lease 时钟。
+- [x] COMMIT：形成 Outbox 提交。
 
 ### Task 10: buildBatch_orderedEvents_producesStableHash
 
