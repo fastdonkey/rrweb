@@ -5,6 +5,8 @@ export type {
   DataInsightsOptions,
   DebugInfo,
   DeliveryStateSnapshot,
+  RemoteConfigResolverOptions,
+  ResolvedApplicationConfig,
   ConsentEvidence,
   RecordingContext,
   SDKErrorCode,
@@ -13,6 +15,9 @@ export type {
   StopReason,
   Transport,
 } from './public/types';
+
+export { parseAppKeyRoute, resolveConfigOrigin } from './config/app-key';
+export { resolveRemoteConfig } from './config/remote-config';
 
 export const DataInsights = createClient();
 

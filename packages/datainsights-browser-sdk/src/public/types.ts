@@ -1,5 +1,9 @@
 export type SDKErrorCode =
   | 'INVALID_CONFIG'
+  | 'APP_KEY_ROUTE_UNSUPPORTED'
+  | 'REMOTE_CONFIG_FAILED'
+  | 'REMOTE_CONFIG_INVALID'
+  | 'APPLICATION_DISABLED'
   | 'CONFIG_UNSUPPORTED_SAMPLING'
   | 'ALREADY_INITIALIZED_WITH_DIFFERENT_CONFIG'
   | 'CONSENT_REQUIRED'
@@ -45,6 +49,21 @@ export interface DataInsightsOptions {
     flushIntervalMs?: number;
   };
   debug?: boolean;
+}
+
+export interface ResolvedApplicationConfig {
+  readonly appKey: string;
+  readonly enabled: true;
+  readonly configVersion: string;
+  readonly collectorUrls: readonly [string, ...string[]];
+  readonly uploadToken: string;
+  readonly expiresAt: string;
+}
+
+export interface RemoteConfigResolverOptions {
+  readonly fetchImpl?: typeof fetch;
+  readonly signal?: AbortSignal;
+  readonly now?: () => number;
 }
 
 export interface ConsentEvidence {

@@ -19,7 +19,7 @@
 - 修改：`packages/datainsights-browser-sdk/src/index.ts`
 - 测试：`packages/datainsights-browser-sdk/test/app-key-config.test.ts`
 
-- [ ] **步骤 1：编写 AppKey 路由失败测试**
+- [x] **步骤 1：编写 AppKey 路由失败测试**
 
 ```ts
 expect(parseAppKeyRoute('di_p_cn1_K7J9M2X4')).toEqual({
@@ -32,13 +32,13 @@ expect(parseAppKeyRoute('di_p_evil.example_K7J9M2X4')).toMatchObject({
 });
 ```
 
-- [ ] **步骤 2：运行测试并确认 RED**
+- [x] **步骤 2：运行测试并确认 RED**
 
 运行：`yarn workspace @datainsights/browser-sdk vitest run test/app-key-config.test.ts`
 
 预期：FAIL，`app-key.ts` 和解析接口尚不存在。
 
-- [ ] **步骤 3：实现固定枚举路由和配置 schema**
+- [x] **步骤 3：实现固定枚举路由和配置 schema**
 
 ```ts
 const ROUTES = {
@@ -58,13 +58,13 @@ export interface ResolvedApplicationConfig {
 
 解析器只允许 `di_(p|t)_<known-region>_<8..64 alphanumeric>`，不得把 Key 的任意片段拼接为 URL。远程响应必须拒绝未知字段、非 HTTPS Collector、过期凭证、AppKey 不一致和 `enabled !== true`。
 
-- [ ] **步骤 4：运行定向测试和类型检查**
+- [x] **步骤 4：运行定向测试和类型检查**
 
 运行：`yarn workspace @datainsights/browser-sdk vitest run test/app-key-config.test.ts && yarn workspace @datainsights/browser-sdk check-types`
 
 预期：PASS。
 
-- [ ] **步骤 5：提交**
+- [x] **步骤 5：提交**
 
 ```bash
 git add packages/datainsights-browser-sdk/src/config packages/datainsights-browser-sdk/src/public/types.ts packages/datainsights-browser-sdk/src/index.ts packages/datainsights-browser-sdk/test/app-key-config.test.ts

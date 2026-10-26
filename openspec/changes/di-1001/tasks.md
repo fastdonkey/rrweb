@@ -512,12 +512,12 @@ T01..T16 → T17
 - Verify: `yarn workspace @datainsights/browser-sdk vitest run test/app-key-config.test.ts`
 - Dependencies: T02、T11。
 - Files: `src/config/app-key.ts`、`src/config/remote-config.ts`、`src/public/types.ts`、`test/app-key-config.test.ts`。
-- [ ] RED
-- [ ] VERIFY RED
-- [ ] GREEN
-- [ ] VERIFY GREEN
-- [ ] REFACTOR
-- [ ] COMMIT
+- [x] RED
+- [x] VERIFY RED
+- [x] GREEN
+- [x] VERIFY GREEN
+- [x] REFACTOR
+- [x] COMMIT
 
 ### Task 19: sendResolvedHttpTransport_exactReceipt_preservesDurability
 
