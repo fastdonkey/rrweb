@@ -34,7 +34,7 @@
     "umd",
     "package.json"
   ],
-  "sideEffects": false,
+  "sideEffects": true,
   "license": "MIT",
   "devDependencies": {
     "fake-indexeddb": "^6.0.0",

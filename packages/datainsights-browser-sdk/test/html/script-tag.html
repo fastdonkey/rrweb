@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>DataInsights Script Tag Integration</title>
+    <script
+      src="/v1/datainsights-browser-sdk.js"
+      data-app-key="insurance-h5"
+      data-worker-url="/v1/serialization.worker.js"
+    ></script>
+  </head>
+  <body>
+    <main>
+      <label>投保人<input id="policy-holder" /></label>
+      <label>密码<input id="password" type="password" /></label>
+      <button id="submit-policy">提交投保</button>
+    </main>
+  </body>
+</html>

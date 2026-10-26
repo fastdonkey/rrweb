@@ -14,6 +14,7 @@ import {
   type DispatchOutbox,
 } from '../pipeline/outbox-dispatcher';
 import type { RecordingBatchV1 } from '../pipeline/batcher';
+import { isUnconfiguredTransport } from '../transport/unconfigured';
 import type {
   ConsentEvidence,
   DataInsightsClient,
@@ -139,6 +140,14 @@ export function createClient(): DataInsightsClient {
       if (!consentManager.granted || state.state !== 'authorized') {
         return Promise.resolve(
           failure('CONSENT_REQUIRED', 'Consent is required before recording.'),
+        );
+      }
+      if (isUnconfiguredTransport(options?.transport)) {
+        return Promise.resolve(
+          failure(
+            'TRANSPORT_NOT_CONFIGURED',
+            'A delivery Transport must be configured before recording.',
+          ),
         );
       }
 

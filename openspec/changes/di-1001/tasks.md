@@ -440,12 +440,12 @@ T01..T16 → T17
   - Create: `test/script-tag.integration.test.ts`
   - Create: `test/html/script-tag.html`
   - Create: `README.md`
-- [ ] RED：先写浏览器端缺 Transport 和重复加载测试。
-- [ ] VERIFY RED：确认 bootstrap 尚不存在而失败。
-- [ ] GREEN：实现最小全局入口和 fail-closed 行为。
-- [ ] VERIFY GREEN：运行定向集成测试。
-- [ ] REFACTOR：集中 script 属性解析和诊断。
-- [ ] COMMIT：形成 Script Tag 提交。
+- [x] RED：先写浏览器端缺 Transport 和重复加载测试。
+- [x] VERIFY RED：确认 bootstrap 尚不存在而失败。
+- [x] GREEN：实现最小全局入口和 fail-closed 行为。
+- [x] VERIFY GREEN：运行定向集成测试。
+- [x] REFACTOR：集中 script 属性解析和诊断。
+- [x] COMMIT：形成 Script Tag 提交。
 
 ### Task 16: replaySegment_untrustedFixture_rebuildsSandboxed
 
