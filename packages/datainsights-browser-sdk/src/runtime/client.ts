@@ -11,7 +11,8 @@ import type {
   StopReason,
 } from '../public/types';
 import { LifecycleStateMachine } from './state-machine';
-import { generateUuid } from '../shared/uuid';
+import { SessionManager } from '../session/session-manager';
+import { ActivityTracker } from './activity-tracker';
 
 function failure(
   code: Extract<SDKResult, { ok: false }>['error']['code'],
@@ -34,22 +35,14 @@ function equivalentConfig(
   );
 }
 
-function createTemporaryRecordingContext(
-  identityType: RecordingContext['identityType'],
-): RecordingContext {
-  return {
-    identityType,
-    sessionId: generateUuid(),
-    recordingId: generateUuid(),
-    segmentId: generateUuid(),
-  };
-}
-
 export function createClient(): DataInsightsClient {
   const state = new LifecycleStateMachine();
   const consentManager = new ConsentManager();
   let options: Readonly<DataInsightsOptions> | undefined;
   let identityManager: IdentityManager | undefined;
+  let sessionManager: SessionManager | undefined;
+  let activityTracker: ActivityTracker | undefined;
+  let segmentTimer: ReturnType<typeof setInterval> | undefined;
   let startPromise: Promise<SDKResult<RecordingContext>> | undefined;
   let recordingContext: RecordingContext | undefined;
 
@@ -70,6 +63,7 @@ export function createClient(): DataInsightsClient {
       }
       options = validation.value;
       identityManager = new IdentityManager(validation.value.appKey);
+      sessionManager = new SessionManager(validation.value.appKey);
       state.transition('initialized');
       return { ok: true, value: client };
     },
@@ -139,10 +133,26 @@ export function createClient(): DataInsightsClient {
               failure('IDENTITY_INVALID', 'Identity could not be resolved.')
             );
           }
-          recordingContext = createTemporaryRecordingContext(
+          recordingContext = await sessionManager?.startRecording(
             identity.value.type,
+            context?.journeyId,
           );
+          if (!recordingContext) {
+            state.transition('authorized');
+            return failure('INVALID_STATE', 'Session could not be created.');
+          }
           state.transition('recording');
+          activityTracker = new ActivityTracker(
+            () => sessionManager?.recordActivity(),
+            () => void client.stop('idle-timeout'),
+          );
+          activityTracker.start();
+          segmentTimer = setInterval(() => {
+            if (recordingContext) {
+              recordingContext =
+                sessionManager?.rotateSegment(recordingContext);
+            }
+          }, 30 * 60 * 1000);
           return { ok: true, value: recordingContext };
         } catch {
           state.transition('authorized');
@@ -191,6 +201,11 @@ export function createClient(): DataInsightsClient {
       if (state.state !== 'recording' && state.state !== 'degraded') {
         return { ok: true, value: undefined };
       }
+      activityTracker?.stop();
+      activityTracker = undefined;
+      if (segmentTimer !== undefined) clearInterval(segmentTimer);
+      segmentTimer = undefined;
+      sessionManager?.endRecording(_reason);
       recordingContext = undefined;
       if (state.state === 'recording') {
         state.transition('stopping');
@@ -212,6 +227,9 @@ export function createClient(): DataInsightsClient {
       if (state.state === 'recording' || state.state === 'starting') {
         await client.stop();
       }
+      activityTracker?.stop();
+      if (segmentTimer !== undefined) clearInterval(segmentTimer);
+      sessionManager?.destroy();
       state.transition('destroyed');
       return { ok: true, value: undefined };
     },

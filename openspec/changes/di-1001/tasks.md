@@ -183,12 +183,12 @@ T01..T16 → T17
   - Create: `src/runtime/activity-tracker.ts`
   - Modify: `src/runtime/client.ts`
   - Test: `test/session-manager.test.ts`
-- [ ] RED：先写刷新/新标签页/30 分钟边界测试。
-- [ ] VERIFY RED：确认 Session 管理器缺失导致失败。
-- [ ] GREEN：实现最小 Session 状态和活动计时。
-- [ ] VERIFY GREEN：运行定向测试。
-- [ ] REFACTOR：集中时间常量和 disposer。
-- [ ] COMMIT：形成 Session 边界提交。
+- [x] RED：先写刷新/新标签页/30 分钟边界测试。
+- [x] VERIFY RED：确认 Session 管理器缺失导致失败。
+- [x] GREEN：实现最小 Session 状态和活动计时。
+- [x] VERIFY GREEN：运行定向测试。
+- [x] REFACTOR：集中时间常量和 disposer。
+- [x] COMMIT：形成 Session 边界提交。
 
 ### Task 06: startRecorder_sensitiveFields_neverLeak
 
