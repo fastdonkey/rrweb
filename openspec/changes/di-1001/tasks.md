@@ -500,6 +500,121 @@ T01..T16 → T17
 - [x] REFACTOR：移除重复测试设置并固定可重复基准参数。
 - [x] COMMIT：形成发布与升级保障提交。
 
+### Task 18: resolveAppKey_trustedRoute_returnsValidatedConfig
+
+**任务编号**：DEV-DI-018
+
+- Goal: 由格式化 AppKey 选择受信任配置中心并校验应用配置，禁止客户端填写 endpoint 或构造任意 URL。
+- Acceptance:
+  - `di_{environment}_{region}_{randomId}` 仅接受已知环境/区域和安全字符。
+  - 配置响应校验 appKey、启停状态、版本、主备 Collector、短期凭证和过期时间。
+  - 未知路由、过期/非法配置均 fail closed，授权前无录制副作用。
+- Verify: `yarn workspace @datainsights/browser-sdk vitest run test/app-key-config.test.ts`
+- Dependencies: T02、T11。
+- Files: `src/config/app-key.ts`、`src/config/remote-config.ts`、`src/public/types.ts`、`test/app-key-config.test.ts`。
+- [ ] RED
+- [ ] VERIFY RED
+- [ ] GREEN
+- [ ] VERIFY GREEN
+- [ ] REFACTOR
+- [ ] COMMIT
+
+### Task 19: sendResolvedHttpTransport_exactReceipt_preservesDurability
+
+**任务编号**：DEV-DI-019
+
+- Goal: 根据已校验配置创建标准 HTTP Transport，支持精确回执、对账和主备 Collector 切换。
+- Acceptance:
+  - 只使用 resolver 返回的地址和短期凭证。
+  - HTTP 2xx 但回执不匹配时不删除 Outbox。
+  - 主节点暂时失败可切换备用节点；AbortSignal 和 destroy 生效。
+- Verify: `yarn workspace @datainsights/browser-sdk vitest run test/http-transport.test.ts test/transport-receipt.test.ts`
+- Dependencies: T18、T11-T13。
+- Files: `src/transport/http.ts`、`src/transport/types.ts`、`test/http-transport.test.ts`。
+- [ ] RED
+- [ ] VERIFY RED
+- [ ] GREEN
+- [ ] VERIFY GREEN
+- [ ] REFACTOR
+- [ ] COMMIT
+
+### Task 20: bootstrap_startSelector_clickStartsRecording
+
+**任务编号**：DEV-DI-020
+
+- Goal: 提供无需 endpoint/Transport/Worker 配置的推荐 `bootstrap()`，由嵌入方按钮真实点击触发授权和录制。
+- Acceptance:
+  - 页面加载及配置解析完成时不自动授权或录制。
+  - 点击 `startSelector` 后记录 noticeVersion，解析可选 userId，并只启动一次。
+  - 配置失败、selector 无效、身份回调异常和 destroy 都不影响宿主页面且可诊断。
+- Verify: `yarn workspace @datainsights/browser-sdk vitest run test/bootstrap.test.ts test/script-tag.integration.test.ts`
+- Dependencies: T18、T19、T03、T15。
+- Files: `src/runtime/bootstrap.ts`、`src/runtime/client.ts`、`src/runtime/state-machine.ts`、`src/browser-entry.ts`、`test/bootstrap.test.ts`。
+- [ ] RED
+- [ ] VERIFY RED
+- [ ] GREEN
+- [ ] VERIFY GREEN
+- [ ] REFACTOR
+- [ ] COMMIT
+
+### Task 21: probeIndexedDb_runtimeFailure_failsClosed
+
+**任务编号**：DEV-DI-021
+
+- Goal: 以真实 open/write/read/delete 探测作为录制门禁，并建立自动化/真机兼容矩阵。
+- Acceptance:
+  - 缺失、拒绝、事务异常或读回不一致均返回 `PERSISTENCE_UNAVAILABLE`，不启动 rrweb。
+  - Storage Estimate/Persist 支持状态可诊断；persist 被拒绝不虚报成功。
+  - 真机未执行项明确标为 Pending，不用移动 viewport 冒充真机通过。
+- Verify: `yarn workspace @datainsights/browser-sdk vitest run test/persistence-capability.test.ts test/indexeddb-journal.test.ts test/indexeddb-outbox.test.ts`
+- Dependencies: T08、T09、T20。
+- Files: `src/persistence/capability.ts`、`src/persistence/database.ts`、`src/runtime/client.ts`、`test/persistence-capability.test.ts`、`COMPATIBILITY.md`。
+- [ ] RED
+- [ ] VERIFY RED
+- [ ] GREEN
+- [ ] VERIFY GREEN
+- [ ] REFACTOR
+- [ ] COMMIT
+
+### Task 22: recordInsuranceClone_realInteraction_replaysLocally
+
+**任务编号**：DEV-DI-022
+
+- Goal: 提供可人工访问的去生产化保险产品页面、本地 Config/Collector 和真实 rrweb 回放。
+- Acceptance:
+  - 页面参考指定保险产品的移动端长页面和投保交互，但没有第三方脚本、生产接口、Cookie、Fingerprint 或监控。
+  - 使用发布 UMD/Worker、测试 AppKey、Mock Config 和精确持久化回执完成真实录制。
+  - 普通保险字段可回放，密码不存在；回放 iframe 不允许脚本；任何非本地请求使测试失败。
+  - 提供 `demo:insurance` 和 `test:insurance-e2e` 命令。
+- Verify: `yarn workspace @datainsights/browser-sdk vitest run test/insurance-product.e2e.test.ts test/replay-segment.integration.test.ts`
+- Dependencies: T20、T21、T16。
+- Files: `examples/insurance-product/`、`scripts/insurance-demo.mjs`、`test/insurance-product.e2e.test.ts`、`package.json`。
+- [ ] RED
+- [ ] VERIFY RED
+- [ ] GREEN
+- [ ] VERIFY GREEN
+- [ ] REFACTOR
+- [ ] COMMIT
+
+### Task 23: verifySimplifiedIntegration_fullRegression_evidenceComplete
+
+**任务编号**：DEV-DI-023
+
+- Goal: 更新需求、接入、兼容和测试证据，并完成 SDK/上游顺序回归。
+- Acceptance:
+  - 推荐示例不含 endpoint 或长期 secret，并说明 AppKey 路由、noticeVersion、本地演示和 fail-closed。
+  - SDK 全量、类型、构建、发布产物、保险 E2E 和受影响 rrweb 回归完成。
+  - 真机 Pending、既有上游像素差异和后端范围明确记录，不虚报通过。
+- Verify: 见 `implementation-plan-v1.4.md` Task 23，所有浏览器构建命令顺序执行。
+- Dependencies: T18-T22。
+- Files: `README.md`、`prd/`、`proposal.md`、`tasks.md`、`test-cases.md`、`review-report.md`。
+- [ ] RED
+- [ ] VERIFY RED
+- [ ] GREEN
+- [ ] VERIFY GREEN
+- [ ] REFACTOR
+- [ ] COMMIT
+
 ## Checkpoint 执行要求
 
 每个 Checkpoint 必须记录以下证据后才允许继续：

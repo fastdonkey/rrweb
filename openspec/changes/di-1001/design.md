@@ -2,12 +2,12 @@
 jira: DI-1001
 proposal_source: openspec/changes/di-1001/proposal.md
 proposal_version: 1.2
-design_version: 1.3
+design_version: 1.4
 created: 2026-10-25
 updated: 2026-10-26
 ---
 
-# DI-1001 DataInsights 前端 SDK 技术设计文档 v1.3
+# DI-1001 DataInsights 前端 SDK 技术设计文档 v1.4
 
 ## 1. 背景与目标
 
@@ -32,6 +32,8 @@ DI-1001 要在 rrweb Fork 内构建面向保险投保流程的 DataInsights 浏�
 - rrweb recorder 适配、授权后启动、100% 投保录制；
 - 身份、Session、Journey、Recording、Segment 生命周期；
 - 隐私策略、批次、序列、IndexedDB durable outbox、Worker 序列化和 Transport 抽象；
+- AppKey 路由解析、远程配置客户端、标准 HTTP Transport 和简化 `bootstrap()`；
+- IndexedDB 运行时兼容探测及去生产化保险产品真实录制/回放 E2E；
 - 内存、下载文件和 Mock HTTP Transport；
 - 诊断、故障隔离、资源释放、构建、测试及上游升级约束。
 
@@ -39,7 +41,7 @@ DI-1001 要在 rrweb Fork 内构建面向保险投保流程的 DataInsights 浏�
 
 - 生产接收 API、鉴权、租户、数据库、对象存储和分析系统；
 - `appKey` 的管理后台、`appSecret` 签发/轮换、短期凭证服务和服务端验签；
-- 生产网络协议、服务端持久化、正式回放控制台；
+- 配置中心、Collector 接收端、服务端持久化和正式回放控制台；
 - FingerprintJS、网络请求正文录制、Canvas/WebGL 录制；
 - 服务端证据签名、存证、留存、访问控制和法律效力认定。
 
@@ -148,12 +150,41 @@ SGS Tech 中面向 Java、DDD、数据库和 REST 的规则不适用于本次纯
 
 **决策 D-10：** SDK 依次通过采集序列、本地 journal/outbox、网络恢复、稳定幂等键与内容哈希、持久化回执校验、sequence 对账与定向重传、容量分级降级保障上送质量。生产服务端实现不纳入本期，但 Transport 契约和 Mock 必须能够验证完整闭环。
 
+### 3.11 AppKey 路由与远程配置解析
+
+| 方案 | 优点 | 缺点 | 结论 |
+| --- | --- | --- | --- |
+| A. AppKey 携带环境/区域路由提示，再由配置中心解析最终 Collector | 客户端无需填写服务地址；支持迁移、容灾和灰度；不暴露长期密钥 | SDK 增加配置解析状态和失败处理 | **采用** |
+| B. 客户端显式填写 endpoint | 实现直接 | 配置复杂、容易配错，且把平台路由责任下放给嵌入方 | 不采用为推荐接入 |
+| C. 将完整服务器地址编码进 AppKey | 无需配置查询即可推导地址 | 地址迁移会使 Key 失效，暴露内部拓扑且不适合私有化 | 不采用 |
+
+**决策 D-11：** AppKey 使用 `di_{environment}_{region}_{randomId}` 形式，例如 `di_p_cn1_K7J9M2X4`。`environment` 和 `region` 只用于从 SDK 内置白名单选择配置中心，不作为认证信息；`randomId` 是应用唯一公开标识。SDK 禁止把 AppKey 中的任意字符串直接拼成 URL，未知环境、未知区域或非法字符必须 fail closed。
+
+配置中心根据完整 AppKey 解析客户、产品、平台、部署环境、启停状态、Collector 主备地址、配置版本和短期上传凭证。配置响应必须受严格 schema 和受信任 URL 规则校验；Collector 地址可以迁移，AppKey 无需变更。生产配置中心、凭证签发、配置签名和验签机制仍属于后端变更；DI-1001 实现浏览器 resolver 契约、严格校验、缓存边界以及本地 Mock Config/Collector 闭环。未来加入签名时不得改变嵌入方 API。
+
+私有化部署不使用公共区域推导：SDK 从受信任的脚本来源推导同源配置入口，例如 `https://customer.example.com/datainsights/sdk.js` 对应 `/datainsights/sdk/config`。脚本来源和配置地址只能来自构建时允许列表或同源规则，不能接受页面 query、DOM 数据或 AppKey 随意覆盖。
+
+### 3.12 简化接入与授权触发
+
+**决策 D-12：** 保留 `init({ appKey, transport })` 作为高级、测试和自定义 Transport API，同时增加推荐的 `bootstrap()` API。普通嵌入方只填写 AppKey、授权入口和告知版本；不填写 endpoint、Worker URL、platform、tenantId 或任何长期 secret。SDK 自动解析配置、建立标准 HTTP Transport、推导 Worker、绑定授权入口并在用户点击后启动录制。
+
+授权 UI 和告知文案仍由嵌入方负责。`startSelector` 只允许选择明确的投保入口；SDK 不在页面加载时自动授权或录制。`noticeVersion` 用于标识用户点击时对应的告知文案版本。`resolveUserId` 可选，缺失或返回空值时使用授权后生成的匿名 ID；回调异常必须被隔离且不得阻止宿主点击处理。
+
+### 3.13 持久化兼容门禁与真实保险页面验证
+
+**决策 D-13：** IndexedDB 仍是可靠 Journal/Outbox 的必要能力，不提供纯内存生产降级。每次首次启动录制前执行 open/write/read/delete 原子探测，并查询可用时的 Storage Estimate/Persist 状态；失败返回 `PERSISTENCE_UNAVAILABLE`，rrweb 不得启动。浏览器支持声明必须由自动化矩阵和真机验收共同支撑，桌面 Chromium 或移动 viewport 不能替代 iOS、Android 及超级 App WebView 真机结论。
+
+真实页面 E2E 采用去生产化的本地保险产品 fixture：参考用户指定公开页面的移动端长页面、保障计划、价格、弹窗和投保交互，但移除第三方脚本、监控、Fingerprint、生产 Cookie、SSR 业务数据、外部接口和跳转。测试加载真实发布 UMD/Worker，经 Mock Config 使用测试 AppKey 解析本地 Mock Collector，并用实际产生的 rrweb 事件完成沙箱回放；测试进程拒绝全部非本地网络请求。
+
 ## 4. 总体架构
 
 ```mermaid
 flowchart TB
     Host[嵌入方页面] --> API[DataInsights Public API]
     Script[Script Tag Bootstrap] --> API
+    API --> Resolver[AppKey Config Resolver]
+    Resolver --> Config[Regional / Same-origin Config Service]
+    Config --> HTTP[Built-in HTTP Transport]
     API --> Controller[SDK Controller / State Machine]
     Controller --> Consent[Consent Manager]
     Controller --> Identity[Identity Manager]
@@ -167,7 +198,7 @@ flowchart TB
     Serializer --> Outbox[IndexedDB Durable Outbox]
     Outbox --> Queue[Single-flight Dispatcher]
     Queue --> Integrity[Receipt / Hash / Reconciliation]
-    Integrity --> Transport[Pluggable Transport]
+    Integrity --> Transport[Built-in / Pluggable Transport]
     Controller --> Diagnostics[Diagnostics Store]
     Session --> Diagnostics
     Pipeline --> Diagnostics
@@ -180,6 +211,8 @@ flowchart TB
 | --- | --- | --- | --- |
 | 公共入口 | `packages/datainsights-browser-sdk/src/index.ts` | 导出 API、类型和默认单例 facade | rrweb 细节、Transport 实现 |
 | Script 启动器 | `src/browser-entry.ts` | 解析当前 script 的 `data-*`，安装 `window.DataInsights` | 自动授予同意或自动开始首次录制 |
+| AppKey Resolver | `src/config/app-key.ts`、`src/config/remote-config.ts` | 校验 Key、解析受信任配置入口、校验并缓存配置响应 | 生产配置签发、任意 URL 拼接 |
+| Bootstrap | `src/runtime/bootstrap.ts` | 解析远程配置、建立内置 HTTP Transport、绑定明确的授权入口 | 展示授权 UI、加载时自动授权 |
 | Controller | `src/runtime/client.ts` | 编排状态、生命周期与返回 Result | DOM 序列化 |
 | 状态机 | `src/runtime/state-machine.ts` | 校验状态迁移和幂等规则 | 业务数据持久化 |
 | 配置 | `src/config/config.ts` | schema、默认值、未知字段与安全合并 | 远程配置网络调用 |
@@ -195,7 +228,8 @@ flowchart TB
 | Durable Outbox | `src/persistence/indexeddb-outbox.ts` | 原子写入不可变批次、FIFO 查询、匹配持久化回执后删除和跨启动恢复 | 服务端存储 |
 | Outbox Dispatcher | `src/pipeline/outbox-dispatcher.ts` | 单通道顺序发送、有限重试、跨标签页 lease | 删除未确认批次 |
 | Delivery Integrity | `src/delivery/integrity.ts`、`reconciliation.ts` | 内容哈希、回执匹配、sequence 对账和定向重传 | 服务端持久化 |
-| Transport 契约 | `src/transport/types.ts` | Transport 接口与结果类型 | 具体生产协议 |
+| Transport 契约 | `src/transport/types.ts` | Transport 接口与结果类型 | 服务端持久化实现 |
+| 标准 HTTP Transport | `src/transport/http.ts` | 按解析后的主备 Collector、短期凭证、持久化回执和对账契约通信 | 长期密钥、配置中心或服务端存储 |
 | 测试 Transport | `src/transport/memory.ts`、`download.ts`、`mock-http.ts` | 本地和集成验证 | 生产 SLA |
 | Diagnostics | `src/diagnostics/diagnostics.ts` | 无敏感内容的计数、状态和最近错误 | 上传遥测 |
 
@@ -224,6 +258,10 @@ window.DataInsights;
 ```ts
 export type SDKErrorCode =
   | 'INVALID_CONFIG'
+  | 'APP_KEY_ROUTE_UNSUPPORTED'
+  | 'REMOTE_CONFIG_FAILED'
+  | 'REMOTE_CONFIG_INVALID'
+  | 'APPLICATION_DISABLED'
   | 'CONFIG_UNSUPPORTED_SAMPLING'
   | 'ALREADY_INITIALIZED_WITH_DIFFERENT_CONFIG'
   | 'CONSENT_REQUIRED'
@@ -275,11 +313,26 @@ export interface DataInsightsOptions {
   };
   debug?: boolean;
 }
+
+export interface DataInsightsBootstrapOptions {
+  appKey: string;
+  consent: {
+    startSelector: string;
+    noticeVersion: string;
+  };
+  resolveUserId?: () => string | undefined | Promise<string | undefined>;
+  onDeliveryStateChange?: (
+    state: Readonly<DeliveryStateSnapshot>,
+  ) => void;
+  privacy?: DataInsightsOptions['privacy'];
+  debug?: boolean;
+}
 ```
 
 约束：
 
 - `appKey` 是公开应用标识；同一客户的不同产品、H5/PC 平台及生产/非生产环境必须由平台侧签发不同 `appKey`；
+- 推荐的 `bootstrap()` 不接收 `endpoint`；Collector 只能来自 AppKey Resolver 校验通过的配置响应；
 - SDK 不接受 `platform`、`tenantId` 或 `environment` 作为权威归属字段，这些维度由 `appKey` 的服务端应用配置统一解析；
 - v1 保险模式的连续无有效操作超时和 Recording 分段时长均固定为 30 分钟，不暴露可配置项；
 - 不接受 `sampleRate`、`securityKey`、`appSecret`、API secret、Bearer token 或生产端共享密钥；发现这些字段时 `init()` 返回 `INVALID_CONFIG`；
@@ -310,6 +363,9 @@ export interface RecordingContext {
 
 export interface DataInsightsClient {
   init(options: DataInsightsOptions): SDKResult<DataInsightsClient>;
+  bootstrap(
+    options: DataInsightsBootstrapOptions,
+  ): Promise<SDKResult<DataInsightsClient>>;
   consent: {
     grant(evidence: ConsentEvidence): SDKResult<void>;
     revoke(): Promise<SDKResult<void>>;
@@ -327,6 +383,7 @@ export interface DataInsightsClient {
 
 方法语义：
 
+- `bootstrap` 先解析并校验 AppKey 远程配置，再建立标准 Transport 和授权入口监听；配置失败时保持零采集并返回稳定错误；
 - `init`、`grant`、`identify`、`clearIdentity`、`addCustomEvent` 为同步 Result；
 - `start` 必须先验证 IndexedDB、恢复 journal/outbox 并建立 dispatcher，因此返回 Promise；持久化能力未就绪时不得启动 rrweb；
 - `stop`、`revoke`、`flush`、`destroy` 因涉及持久化提交或 Transport drain，返回 Promise；
@@ -337,30 +394,31 @@ export interface DataInsightsClient {
 ### 5.5 Script Tag 契约
 
 ```html
-<script
-  async
-  src="https://cdn.datainsights.io/sdk/v1/datainsights-browser-sdk.min.js"
-  data-app-key="app_public_key"
-></script>
+<script src="https://cdn.datainsights.io/sdk/v1/datainsights-browser-sdk.min.js"></script>
+<script>
+  DataInsights.bootstrap({
+    appKey: 'di_p_cn1_K7J9M2X4',
+    consent: {
+      startSelector: '#start-insurance',
+      noticeVersion: 'insurance-notice-v1',
+    },
+    resolveUserId: () => window.currentUser?.id,
+  });
+</script>
 ```
 
-Script Tag 负责加载全局 facade 并解析公开 `appKey`。本期没有内置生产 Transport；嵌入方必须通过模块 API 或全局 facade 的 `init({ appKey, transport })` 注入 Transport 后，才能在“开始投保”按钮点击处理器中调用：
+固定版本 URL 是生产默认；`latest` 只允许开发试用。`bootstrap()` 根据 AppKey 路由提示选择受信任配置中心，获得并校验 Collector 配置后建立内置 Transport。它只监听配置的 `startSelector`，在用户真实点击时记录授权证据并调用 `start()`，不得在加载或配置解析完成时自动授权。
 
-```ts
-DataInsights.consent.grant({
-  noticeVersion: 'insurance-notice-v1',
-  action: 'start-insurance',
-});
-await DataInsights.start({ userId, journeyId });
-```
-
-固定版本 URL 是生产默认；`latest` 只允许开发试用。Script Tag 未配置 Transport 时只安装 facade 并产生限频诊断，`start()` 返回 `TRANSPORT_NOT_CONFIGURED`；不得静默回退到 MemoryTransport。Memory、Download 和 Mock HTTP Transport 必须由开发/测试环境显式配置。
+嵌入方不得填写 endpoint；私有化部署由 SDK script 的同源地址决定配置入口。高级 API 仍允许受审代码通过 `init({ appKey, transport })` 注入 Transport。解析失败、应用停用、配置签名/schema 非法或无法建立持久化能力时 fail closed，不回退到 MemoryTransport。Memory 和 Mock HTTP Transport 仅用于开发测试。
 
 ## 6. 状态机设计
 
 ```mermaid
 stateDiagram-v2
     [*] --> Uninitialized
+    Uninitialized --> Configuring: bootstrap
+    Configuring --> Initialized: valid remote config / internal init
+    Configuring --> Uninitialized: route or config failure
     Uninitialized --> Initialized: init
     Initialized --> Authorized: consent.grant
     Authorized --> Starting: start
@@ -698,6 +756,9 @@ Worker 作为独立构建资源发布。Script Tag 从自身固定版本 URL 推
 - 明确支持 Chrome/Edge 109+、Firefox 115 ESR+、Safari 16.4+；
 - 不支持 IE11、Opera Mini；
 - BroadcastChannel、Worker 或 `crypto.randomUUID` 缺失时使用已定义降级路径，不得破坏宿主页面。
+- IndexedDB 的“浏览器声称支持”不等于运行时可用；`bootstrap/start` 必须以实际 open/write/read/delete 探测结果作为录制门禁；
+- 自动化矩阵至少覆盖 Chromium desktop/mobile viewport、Firefox 和 WebKit；发布真机矩阵覆盖 iOS Safari、Android Chrome、微信/企业微信 WebView、支付宝 WebView、Windows Chrome/Edge 与 macOS Chrome/Safari；
+- 真机项没有执行时必须标为 Pending，不得用桌面模拟或 UA 修改替代通过结论。
 
 ## 13. 故障处理与诊断
 
@@ -705,7 +766,7 @@ Worker 作为独立构建资源发布。Script Tag 从自身固定版本 URL 推
 
 | 类别 | 示例 | 处理 |
 | --- | --- | --- |
-| Config | 非法 selector、缺 appKey、sampleRate、长期 secret | init 失败，无采集副作用 |
+| Config | 非法 selector、缺 appKey、未知 Key 路由、远程配置非法、sampleRate、长期 secret | init/bootstrap 失败，无采集副作用 |
 | Consent/State | 未授权 start、destroy 后调用 | 返回稳定 Result，不调用 rrweb |
 | Recorder | rrweb 初始化或回调异常 | 停止 Recording，进入 Degraded |
 | Serialization | Worker crash、结构化克隆失败 | 一次同步降级；仍失败则停止 Recording |
@@ -761,6 +822,8 @@ Worker 作为独立构建资源发布。Script Tag 从自身固定版本 URL 推
 | Package 类型 | TypeScript `tsc -noEmit` | 公共类型、ESM/SSR import、无 DOM 顶层副作用 |
 | Chromium 集成 | 现有 Puppeteer | Script Tag、授权、rrweb 真实录制、刷新、destroy、下载/Mock HTTP |
 | 跨浏览器 smoke | Playwright Chromium/Firefox/WebKit | 初始化、密码屏蔽、同标签页刷新、Worker 降级、CSP |
+| 存储兼容 | 真浏览器 + fake-indexeddb 故障注入 | open/write/read/delete 探测、配额、持久化授权、隐私模式/不可用/驱逐诊断 |
+| 保险产品 E2E | Puppeteer mobile + 本地 HTTP servers | AppKey 配置解析、授权入口、长页面交互、真实录制、断网恢复、沙箱回放、零外网请求 |
 | 回放兼容 | rrweb Replayer fixture | 新旧 fixture、segment/full snapshot、Sandboxed Rebuild |
 | 长时/性能 | Puppeteer benchmark | 30 分钟、2 小时、DOM/Mutation/FPS/heap/bundle size |
 | 上游回归 | Turbo/Vitest | rrweb 原始测试、类型检查和 build:all |
@@ -768,6 +831,8 @@ Worker 作为独立构建资源发布。Script Tag 从自身固定版本 URL 推
 ### 16.2 必测契约
 
 - 授权前任何事件、身份键、Worker、Transport send 均不存在；
+- AppKey 仅允许已知环境/区域路由，不能由 Key 任意构造 URL；远程配置失败、应用停用、schema 或受信任 URL 规则非法均 fail closed；
+- 推荐接入不接受 endpoint 或长期凭证，配置解析后才能建立内置 HTTP Transport，主备 Collector 切换不改变 appKey；
 - 不同产品/H5/PC 使用不同 `appKey`，批次和浏览器存储命名空间互不混用；批次不重复携带 platform，缺少 appKey 或传入长期 secret 时初始化失败且无采集副作用；
 - `sampleRate` 被拒绝，授权投保 100% 创建 Recording；
 - 密码、hidden token、客户 block/mask 和自定义事件敏感键不泄露；
@@ -777,6 +842,7 @@ Worker 作为独立构建资源发布。Script Tag 从自身固定版本 URL 推
 - batch sequence、稳定 batchId、单通道顺序、有限重试和容量停止；
 - 1 秒/20 事件持久化窗口、journal→outbox 原子迁移、匹配持久化回执后删除、断网/刷新/重启恢复、跨标签页 lease 接管；
 - IndexedDB 不可用、事务失败或 100 MiB 超限时不启动或停止录制，且不静默降级、覆盖或删除未确认数据；
+- IndexedDB 启动探测必须真实完成 open/write/read/delete；Storage Estimate/Persist 不支持或拒绝时可诊断但不能虚报持久化授权；
 - contentHash/previousBatchHash 可发现修改、错序和断链；相同批次重发保持相同 ID、序列和哈希；
 - 匹配持久化回执才删除 Outbox；HTTP 2xx、sendBeacon、缺失/错误回执均不删除；
 - startup/online/gap 对账返回连续序号和缺失区间，SDK 对可恢复范围定向重传；非法对账不伪造完成；
@@ -785,6 +851,7 @@ Worker 作为独立构建资源发布。Script Tag 从自身固定版本 URL 推
 - 重复 init/start/stop/destroy 幂等且资源清零；
 - rrweb/Transport 抛错不会成为宿主未捕获异常；
 - Untrusted Replay Data 无脚本执行能力。
+- 本地保险产品 fixture 使用发布 UMD/Worker，真实交互产生的批次可回放，普通业务输入存在且密码不存在；所有非本地网络请求均被测试拦截并视为失败。
 
 ## 17. 上游升级、兼容与补丁治理
 
@@ -853,7 +920,10 @@ DataInsights 只导入 rrweb package export 暴露的入口。禁止从 `package
 8. sequence 对账、定向重传、网络恢复调度与 Mock Transport；
 9. 容量分级、宿主状态回调、诊断、故障隔离和 ResourceRegistry；
 10. Script Tag、示例页、本地沙箱回放与 CSP；
-11. 跨浏览器、长会话、性能和上游升级回归。
+11. AppKey 路由、远程配置校验、内置 HTTP Transport 和简化 bootstrap；
+12. IndexedDB 运行时探测、自动化/真机兼容矩阵；
+13. 去生产化保险产品页面、真实录制/回放 E2E 和零外网断言；
+14. 跨浏览器、长会话、性能和上游升级回归。
 
 每个切片都应包含独立可观察结果、测试证据和明确文件范围，且一次只实现一个 approved task。
 
@@ -865,6 +935,9 @@ DataInsights 只导入 rrweb package export 暴露的入口。禁止从 `package
 - 用户在 Design 澄清中确认：同一客户的不同产品平台（如 H5、PC）必须独立管理；
 - 用户在 Design 澄清中确认：可靠性不能只依赖重试，采用方案 A 的 1 秒/20 事件 IndexedDB 持久化窗口；
 - 用户在 Design 澄清中确认：采用 SDK 分层上送质量方案，定义回执/对账契约并用 Mock 验证，生产后端不纳入本期；
+- 用户在 Design 澄清中确认：AppKey 携带环境/区域路由提示，由配置中心解析最终 Collector，客户端不配置 endpoint；
+- 用户在 Design 澄清中确认：接入采用一个 Script 加一段基础参数配置，授权入口由嵌入方负责；
+- 用户在 Design 澄清中确认：继续完成 IndexedDB 正式兼容矩阵，并采用去生产化的本地保险页面进行真实录制和回放测试；
 - 根目录 `CONTEXT.md` 的 Untrusted Replay Data / Sandboxed Rebuild 约束；
 - `packages/browser-client` 的构建和浏览器测试模式；
 - `@rrweb/record`、rrweb `recordOptions`、record stop handle、`takeFullSnapshot` 和 plugin 扩展点；
@@ -874,6 +947,7 @@ DataInsights 只导入 rrweb package export 暴露的入口。禁止从 `package
 
 | 日期 | 版本 | 变更内容 | 变更人 |
 | --- | --- | --- | --- |
+| 2026-10-26 | v1.4 | 增加 AppKey 区域路由、远程配置、无 endpoint 的 bootstrap、IndexedDB 运行时兼容门禁及本地保险页面真实录制/回放 E2E 设计 | Codex |
 | 2026-10-26 | v1.3 | 增加分层上送质量、内容哈希、持久化回执、sequence 对账、定向重传和容量分级设计 | Codex |
 | 2026-10-25 | v1.2 | 增加方案 A 的 IndexedDB journal/durable outbox、恢复、容量和跨标签页投递设计，并将 start 改为异步持久化门控 | Codex |
 | 2026-10-25 | v1.1 | 增加应用级 `appKey` 隔离；平台归属由 appKey 映射且 SDK 不重复接收 platform；明确浏览器禁止持有长期 `appSecret/securityKey` | Codex |
