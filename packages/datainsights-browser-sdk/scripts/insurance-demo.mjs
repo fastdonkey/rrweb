@@ -3,8 +3,10 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { build as esbuild } from 'esbuild';
-import { build as viteBuild } from 'vite';
+import sveltePreprocess from 'svelte-preprocess';
+import { build as viteBuild, defaultClientConditions } from 'vite';
 
 const scriptPath = fileURLToPath(import.meta.url);
 const packageRoot = path.resolve(path.dirname(scriptPath), '..');
@@ -63,10 +65,73 @@ async function prepareAssets() {
     target: 'es2017',
     write: false,
   });
-  return Buffer.from(result.outputFiles[0].contents);
+
+  const playerBuild = await viteBuild({
+    configFile: false,
+    root: repositoryRoot,
+    resolve: {
+      conditions: [...defaultClientConditions],
+      alias: [
+        {
+          find: '@rrweb/replay/dist/style.css',
+          replacement: path.resolve(
+            repositoryRoot,
+            'packages/rrweb/src/replay/styles/style.css',
+          ),
+        },
+        {
+          find: '@rrweb/replay',
+          replacement: path.resolve(
+            repositoryRoot,
+            'packages/rrweb/src/replay/index.ts',
+          ),
+        },
+        {
+          find: '@rrweb/packer/unpack',
+          replacement: path.resolve(
+            repositoryRoot,
+            'packages/packer/src/unpack.ts',
+          ),
+        },
+      ],
+    },
+    plugins: [svelte({ preprocess: [sveltePreprocess({ typescript: true })] })],
+    build: {
+      cssCodeSplit: false,
+      target: 'es2017',
+      write: false,
+      lib: {
+        entry: path.resolve(
+          repositoryRoot,
+          'packages/rrweb-player/src/main.ts',
+        ),
+        formats: ['iife'],
+        name: 'rrwebPlayer',
+        fileName: () => 'rrweb-player.js',
+      },
+    },
+  });
+  const playerOutput = Array.isArray(playerBuild)
+    ? playerBuild.flatMap((output) => output.output)
+    : playerBuild.output;
+  const playerScript = playerOutput.find(
+    (output) => output.type === 'chunk' && output.isEntry,
+  );
+  const playerStyle = playerOutput.find(
+    (output) => output.type === 'asset' && output.fileName.endsWith('.css'),
+  );
+  if (!playerScript || !playerStyle) {
+    throw new Error('The local rrweb-player build did not emit JS and CSS.');
+  }
+
+  return {
+    rrwebBundle: Buffer.from(result.outputFiles[0].contents),
+    playerScript: Buffer.from(playerScript.code),
+    playerStyle: Buffer.from(playerStyle.source),
+  };
 }
 
-async function readAssets(rrwebBundle) {
+async function readAssets({ rrwebBundle, playerScript, playerStyle }) {
   const entries = await Promise.all(
     [
       ['/gp/99440765', path.resolve(exampleRoot, 'index.html')],
@@ -83,7 +148,12 @@ async function readAssets(rrwebBundle) {
       ],
     ].map(async ([route, filename]) => [route, await readFile(filename)]),
   );
-  return new Map([...entries, ['/rrweb.js', rrwebBundle]]);
+  return new Map([
+    ...entries,
+    ['/rrweb.js', rrwebBundle],
+    ['/player/rrweb-player.js', playerScript],
+    ['/player/style.css', playerStyle],
+  ]);
 }
 
 async function readJsonBody(request) {
@@ -105,13 +175,27 @@ function sendJson(response, status, value) {
 }
 
 export async function startInsuranceDemoServer(options = {}) {
-  const rrwebBundle =
+  const replayAssets =
     options.buildAssets === false
-      ? await readFile(
-          path.resolve(repositoryRoot, 'packages/rrweb/umd/rrweb.js'),
-        )
+      ? {
+          rrwebBundle: await readFile(
+            path.resolve(repositoryRoot, 'packages/rrweb/umd/rrweb.js'),
+          ),
+          playerScript: await readFile(
+            path.resolve(
+              repositoryRoot,
+              'packages/rrweb-player/umd/rrweb-player.js',
+            ),
+          ),
+          playerStyle: await readFile(
+            path.resolve(
+              repositoryRoot,
+              'packages/rrweb-player/dist/style.css',
+            ),
+          ),
+        }
       : await prepareAssets();
-  const assets = await readAssets(rrwebBundle);
+  const assets = await readAssets(replayAssets);
   const recordings = new Map();
   let origin = '';
 

@@ -70,7 +70,11 @@ export class IndexedDbJournal {
   }
 
   async flush(): Promise<boolean> {
-    if (this.inFlight) return this.inFlight;
+    if (this.inFlight) {
+      const inFlightSucceeded = await this.inFlight;
+      if (!inFlightSucceeded) return false;
+      return this.flush();
+    }
     if (this.buffer.length === 0) return true;
     this.clearTimer();
     const pending = this.buffer;

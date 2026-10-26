@@ -142,6 +142,34 @@ describe('IndexedDB journal', () => {
     expect(chunks[0]).toMatchObject({ sequenceStart: 1, sequenceEnd: 20 });
   });
 
+  it('flushes events appended while an earlier journal write is in flight', async () => {
+    const persistence = await loadPersistence();
+    const database = await persistence.openRecorderDatabase();
+    connections.push(database);
+    const journal = new persistence.IndexedDbJournal({
+      database,
+      appKey: 'insurance-h5',
+      recordingId: 'recording-overlapping-flush',
+    });
+
+    for (let index = 0; index < 19; index += 1) {
+      await journal.append({ index });
+    }
+    const firstFlush = journal.append({ index: 19 });
+    await journal.append({ type: 'tail-during-write' });
+    const finalFlush = journal.flush();
+    await Promise.all([firstFlush, finalFlush]);
+
+    expect(await journal.recover()).toEqual([
+      expect.objectContaining({ sequenceStart: 1, sequenceEnd: 20 }),
+      expect.objectContaining({
+        sequenceStart: 21,
+        sequenceEnd: 21,
+        events: [{ type: 'tail-during-write' }],
+      }),
+    ]);
+  });
+
   it('persists the last durable batch hash for crash-safe chain recovery', async () => {
     const persistence = await loadPersistence();
     const database = await persistence.openRecorderDatabase();

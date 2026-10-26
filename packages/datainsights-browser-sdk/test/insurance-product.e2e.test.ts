@@ -134,8 +134,44 @@ describe('local insurance product recording and replay', () => {
     );
     await page.waitForFunction(
       () =>
-        (window as any).__REPLAY_READY__ === true &&
-        (window as any).__REPLAY_FINISHED__ === true,
+        (window as any).__REPLAY_READY__ === true ||
+        Boolean((window as any).__REPLAY_ERROR__),
+      { timeout: 20_000 },
+    );
+    const replayError = await page.evaluate(
+      () => (window as any).__REPLAY_ERROR__ ?? null,
+    );
+    if (replayError) throw new Error(replayError);
+    await page.waitForSelector('#replay-root .rr-player');
+    const playerUi = await page.evaluate(() => ({
+      hasController: Boolean(document.querySelector('.rr-controller')),
+      hasProgress: Boolean(
+        document.querySelector(
+          '[role="slider"][aria-label="Playback position"]',
+        ),
+      ),
+      speeds: [...document.querySelectorAll('.rr-controller__btns button')]
+        .map((button) => button.textContent?.trim())
+        .filter((text) => /^\d+x$/.test(text ?? '')),
+      paused:
+        (window as any).__REPLAY_PLAYER__?.getReplayer().service.state.value ===
+        'paused',
+    }));
+    expect(playerUi).toEqual({
+      hasController: true,
+      hasProgress: true,
+      speeds: ['1x', '2x', '4x', '8x'],
+      paused: true,
+    });
+    const pausedFrameText = await page.evaluate(() => {
+      const iframe = document.querySelector('#replay-root iframe');
+      return (iframe as HTMLIFrameElement)?.contentDocument?.body.textContent;
+    });
+    expect(pausedFrameText).toContain('给家人一份从容的医疗保障');
+
+    await page.click('.rr-controller__btns button');
+    await page.waitForFunction(
+      () => (window as any).__REPLAY_FINISHED__ === true,
       { timeout: 20_000 },
     );
     const replay = await page.evaluate(() => {
