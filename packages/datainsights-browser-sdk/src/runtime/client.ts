@@ -7,6 +7,12 @@ import {
   type RecorderDatabase,
 } from '../persistence/database';
 import { IndexedDbJournal } from '../persistence/indexeddb-journal';
+import { IndexedDbOutbox } from '../persistence/indexeddb-outbox';
+import {
+  OutboxDispatcher,
+  type DispatchOutbox,
+} from '../pipeline/outbox-dispatcher';
+import type { RecordingBatchV1 } from '../pipeline/batcher';
 import type {
   ConsentEvidence,
   DataInsightsClient,
@@ -58,6 +64,7 @@ export function createClient(): DataInsightsClient {
   let recorder: RecorderHandle | undefined;
   let database: RecorderDatabase | undefined;
   let journal: IndexedDbJournal | undefined;
+  let outboxDispatcher: OutboxDispatcher | undefined;
   let journalDisposers: Array<() => void> = [];
 
   const client: DataInsightsClient = {
@@ -161,6 +168,28 @@ export function createClient(): DataInsightsClient {
             recordingId: recordingContext.recordingId,
           });
           await journal.recover();
+          const outbox = new IndexedDbOutbox(database, options?.appKey ?? '');
+          const dispatchOutbox: DispatchOutbox = {
+            list: async () =>
+              (await outbox.list()) as unknown as readonly Readonly<RecordingBatchV1>[],
+            remove: (batchId) => outbox.remove(batchId),
+          };
+          outboxDispatcher = new OutboxDispatcher({
+            outbox: dispatchOutbox,
+            transport: options?.transport as NonNullable<
+              typeof options
+            >['transport'],
+            eventTarget:
+              typeof globalThis.window === 'undefined'
+                ? undefined
+                : globalThis.window,
+            onBlocked: (batch) => {
+              if (recordingContext?.recordingId === batch.recordingId) {
+                void client.stop('recorder-error');
+              }
+            },
+          });
+          outboxDispatcher.start();
           if (typeof globalThis.window !== 'undefined') {
             journalDisposers.push(journal.bindLifecycle(globalThis.window));
           }
@@ -173,6 +202,8 @@ export function createClient(): DataInsightsClient {
               privacy: options?.privacy,
             });
             if (!recorder.started) {
+              outboxDispatcher.destroy();
+              outboxDispatcher = undefined;
               recordingContext = undefined;
               state.transition('authorized');
               return failure(
@@ -195,6 +226,8 @@ export function createClient(): DataInsightsClient {
           }, 30 * 60 * 1000);
           return { ok: true, value: recordingContext };
         } catch {
+          outboxDispatcher?.destroy();
+          outboxDispatcher = undefined;
           state.transition('authorized');
           return failure(
             'PERSISTENCE_UNAVAILABLE',
@@ -262,6 +295,8 @@ export function createClient(): DataInsightsClient {
       activityTracker = undefined;
       recorder?.stop();
       recorder = undefined;
+      outboxDispatcher?.destroy();
+      outboxDispatcher = undefined;
       await journal?.flush();
       for (const dispose of journalDisposers) dispose();
       journalDisposers = [];
@@ -292,6 +327,8 @@ export function createClient(): DataInsightsClient {
       }
       activityTracker?.stop();
       recorder?.stop();
+      outboxDispatcher?.destroy();
+      outboxDispatcher = undefined;
       await journal?.flush();
       for (const dispose of journalDisposers) dispose();
       journalDisposers = [];

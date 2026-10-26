@@ -364,12 +364,12 @@ T01..T16 → T17
   - Modify: `src/runtime/client.ts`
   - Test: `test/outbox-dispatcher.test.ts`
   - Test: `test/mock-http-transport.test.ts`
-- [ ] RED：先写三次失败保留 Outbox 和恢复触发测试。
-- [ ] VERIFY RED：确认 Dispatcher 缺失导致失败。
-- [ ] GREEN：实现最小调度与状态转换。
-- [ ] VERIFY GREEN：运行两个定向测试。
-- [ ] REFACTOR：注入 clock/random 使重试确定可测。
-- [ ] COMMIT：形成网络恢复提交。
+- [x] RED：先写三次失败保留 Outbox 和恢复触发测试。
+- [x] VERIFY RED：确认 Dispatcher 缺失导致失败。
+- [x] GREEN：实现最小调度与状态转换。
+- [x] VERIFY GREEN：运行两个定向测试。
+- [x] REFACTOR：注入 clock/random 使重试确定可测。
+- [x] COMMIT：形成网络恢复提交。
 
 ### Task 13: reconcileSequence_missingRanges_resendsAvailableBatches
 
