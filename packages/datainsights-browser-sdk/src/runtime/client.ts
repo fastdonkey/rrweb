@@ -1,5 +1,6 @@
 import { validateConfig } from '../config/config';
 import { ConsentManager } from '../consent/consent-manager';
+import { DiagnosticsStore } from '../diagnostics/diagnostics';
 import { IdentityManager } from '../identity/identity-manager';
 import { sanitizeCustomEvent } from '../events/custom-event';
 import {
@@ -29,6 +30,9 @@ import {
 import { LifecycleStateMachine } from './state-machine';
 import { SessionManager } from '../session/session-manager';
 import { ActivityTracker } from './activity-tracker';
+import { ResourceRegistry } from './resource-registry';
+
+const PERSISTENCE_CAPACITY_BYTES = 100 * 1024 * 1024;
 
 function failure(
   code: Extract<SDKResult, { ok: false }>['error']['code'],
@@ -54,6 +58,8 @@ function equivalentConfig(
 export function createClient(): DataInsightsClient {
   const state = new LifecycleStateMachine();
   const consentManager = new ConsentManager();
+  const resources = new ResourceRegistry();
+  let diagnostics = new DiagnosticsStore();
   let options: Readonly<DataInsightsOptions> | undefined;
   let identityManager: IdentityManager | undefined;
   let sessionManager: SessionManager | undefined;
@@ -83,6 +89,9 @@ export function createClient(): DataInsightsClient {
             );
       }
       options = validation.value;
+      diagnostics = new DiagnosticsStore(
+        validation.value.onDeliveryStateChange,
+      );
       identityManager = new IdentityManager(validation.value.appKey);
       sessionManager = new SessionManager(validation.value.appKey);
       state.transition('initialized');
@@ -167,8 +176,24 @@ export function createClient(): DataInsightsClient {
             appKey: options?.appKey ?? '',
             recordingId: recordingContext.recordingId,
           });
-          await journal.recover();
+          const recoveredJournal = await journal.recover();
           const outbox = new IndexedDbOutbox(database, options?.appKey ?? '');
+          const pendingOutbox = await outbox.list();
+          const pendingBytes =
+            recoveredJournal.reduce((total, chunk) => total + chunk.bytes, 0) +
+            pendingOutbox.reduce((total, batch) => total + batch.bytes, 0);
+          diagnostics.updatePending(pendingOutbox.length, pendingBytes);
+          diagnostics.updateCapacity(pendingBytes, PERSISTENCE_CAPACITY_BYTES);
+          if (diagnostics.delivery.capacityLevel === 'full') {
+            diagnostics.recordError('PERSISTENCE_CAPACITY_EXCEEDED');
+            journal = undefined;
+            recordingContext = undefined;
+            state.transition('authorized');
+            return failure(
+              'PERSISTENCE_CAPACITY_EXCEEDED',
+              'Durable recording capacity is full.',
+            );
+          }
           const dispatchOutbox: DispatchOutbox = {
             list: async () =>
               (await outbox.list()) as unknown as readonly Readonly<RecordingBatchV1>[],
@@ -190,11 +215,17 @@ export function createClient(): DataInsightsClient {
             },
           });
           outboxDispatcher.start();
+          const activeDispatcher = outboxDispatcher;
+          resources.add(() => activeDispatcher.destroy());
           if (typeof globalThis.window !== 'undefined') {
-            journalDisposers.push(journal.bindLifecycle(globalThis.window));
+            const dispose = journal.bindLifecycle(globalThis.window);
+            journalDisposers.push(dispose);
+            resources.add(dispose);
           }
           if (typeof globalThis.document !== 'undefined') {
-            journalDisposers.push(journal.bindLifecycle(globalThis.document));
+            const dispose = journal.bindLifecycle(globalThis.document);
+            journalDisposers.push(dispose);
+            resources.add(dispose);
           }
           if (typeof globalThis.document !== 'undefined') {
             recorder = await startRrwebRecorder({
@@ -204,6 +235,7 @@ export function createClient(): DataInsightsClient {
             if (!recorder.started) {
               outboxDispatcher.destroy();
               outboxDispatcher = undefined;
+              await resources.disposeAll();
               recordingContext = undefined;
               state.transition('authorized');
               return failure(
@@ -211,6 +243,8 @@ export function createClient(): DataInsightsClient {
                 'The browser recorder could not be started.',
               );
             }
+            const activeRecorder = recorder;
+            resources.add(() => activeRecorder.stop());
           }
           state.transition('recording');
           activityTracker = new ActivityTracker(
@@ -218,16 +252,21 @@ export function createClient(): DataInsightsClient {
             () => void client.stop('idle-timeout'),
           );
           activityTracker.start();
+          const activeTracker = activityTracker;
+          resources.add(() => activeTracker.stop());
           segmentTimer = setInterval(() => {
             if (recordingContext) {
               recordingContext =
                 sessionManager?.rotateSegment(recordingContext);
             }
           }, 30 * 60 * 1000);
+          const activeSegmentTimer = segmentTimer;
+          resources.add(() => clearInterval(activeSegmentTimer));
           return { ok: true, value: recordingContext };
         } catch {
           outboxDispatcher?.destroy();
           outboxDispatcher = undefined;
+          await resources.disposeAll();
           state.transition('authorized');
           return failure(
             'PERSISTENCE_UNAVAILABLE',
@@ -303,6 +342,7 @@ export function createClient(): DataInsightsClient {
       journal = undefined;
       if (segmentTimer !== undefined) clearInterval(segmentTimer);
       segmentTimer = undefined;
+      await resources.disposeAll();
       sessionManager?.endRecording(_reason);
       recordingContext = undefined;
       if (state.state === 'recording') {
@@ -315,7 +355,11 @@ export function createClient(): DataInsightsClient {
     },
 
     getDebugInfo() {
-      return Object.freeze({ state: state.state });
+      return diagnostics.snapshot({
+        lifecycleState: state.state,
+        resourceCount: resources.count,
+        hasHostIdentity: recordingContext?.identityType === 'host',
+      });
     },
 
     async destroy() {
@@ -334,6 +378,7 @@ export function createClient(): DataInsightsClient {
       journalDisposers = [];
       journal = undefined;
       if (segmentTimer !== undefined) clearInterval(segmentTimer);
+      await resources.disposeAll();
       sessionManager?.destroy();
       database?.close();
       database = undefined;

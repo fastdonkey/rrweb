@@ -414,12 +414,12 @@ T01..T16 → T17
   - Create: `src/runtime/resource-registry.ts`
   - Modify: `src/runtime/client.ts`
   - Test: `test/diagnostics-resources.test.ts`
-- [ ] RED：先写容量状态、敏感字段扫描和资源清零测试。
-- [ ] VERIFY RED：确认诊断/Registry 缺失导致失败。
-- [ ] GREEN：实现最小本地诊断和 disposer 管理。
-- [ ] VERIFY GREEN：运行定向测试。
-- [ ] REFACTOR：统一错误摘要和资源注册接口。
-- [ ] COMMIT：形成诊断资源提交。
+- [x] RED：先写容量状态、敏感字段扫描和资源清零测试。
+- [x] VERIFY RED：确认诊断/Registry 缺失导致失败。
+- [x] GREEN：实现最小本地诊断和 disposer 管理。
+- [x] VERIFY GREEN：运行定向测试。
+- [x] REFACTOR：统一错误摘要和资源注册接口。
+- [x] COMMIT：形成诊断资源提交。
 
 ### Task 15: bootstrapScript_missingTransport_failsClosed
 

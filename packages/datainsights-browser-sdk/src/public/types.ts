@@ -85,6 +85,11 @@ export interface DebugInfo {
     | 'stopping'
     | 'degraded'
     | 'destroyed';
+  readonly delivery: Readonly<DeliveryStateSnapshot>;
+  readonly resourceCount: number;
+  readonly hasHostIdentity: boolean;
+  readonly workerFallback: boolean;
+  readonly recentErrors: readonly Readonly<{ code: SDKErrorCode }>[];
 }
 
 export interface DataInsightsClient {
