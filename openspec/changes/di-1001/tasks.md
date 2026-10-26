@@ -312,12 +312,12 @@ T01..T16 → T17
   - Create: `src/pipeline/serialization.worker.ts`
   - Create: `src/delivery/integrity.ts`
   - Test: `test/batcher-integrity.test.ts`
-- [ ] RED：先写稳定字节、sequence 和 hash chain 测试。
-- [ ] VERIFY RED：确认组批/哈希尚未实现而失败。
-- [ ] GREEN：实现最小组批、规范化和哈希。
-- [ ] VERIFY GREEN：运行定向测试。
-- [ ] REFACTOR：隔离 Worker 通信与同步降级。
-- [ ] COMMIT：形成批次完整性提交。
+- [x] RED：先写稳定字节、sequence 和 hash chain 测试。
+- [x] VERIFY RED：确认组批/哈希尚未实现而失败。
+- [x] GREEN：实现最小组批、规范化和哈希。
+- [x] VERIFY GREEN：运行定向测试。
+- [x] REFACTOR：隔离 Worker 通信与同步降级。
+- [x] COMMIT：形成批次完整性提交。
 
 ### Task 11: validateReceipt_mismatchedAck_keepsOutbox
 
