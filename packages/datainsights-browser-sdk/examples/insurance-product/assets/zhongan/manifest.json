@@ -1,0 +1,47 @@
+{
+  "sourcePage": "https://m.zhongan.com/gp/99440765",
+  "retrievedAt": "2026-10-26",
+  "usage": "DataInsights local recording and replay acceptance demo only",
+  "assets": [
+    {
+      "local": "why-medical.jpg",
+      "source": "https://open-cdn.zhongan.com/dm/assembler/652a1d96c2bef421e6adf9925c6dee55.jpg",
+      "purpose": "medical insurance introduction"
+    },
+    {
+      "local": "high-coverage.jpg",
+      "source": "https://open-cdn.zhongan.com/dm/assembler/c486350cf55ce6cd2c11db34f20d32f9.jpg",
+      "purpose": "high coverage feature"
+    },
+    {
+      "local": "health-access.jpg",
+      "source": "https://open-cdn.zhongan.com/dm/assembler/553964c9f3503e61e1fcc7cabca7d589.jpg",
+      "purpose": "health declaration feature"
+    },
+    {
+      "local": "claims-service.jpg",
+      "source": "https://open-cdn.zhongan.com/dm/assembler/0edce1e0702bc480f62ed0a0f2155659.jpg",
+      "purpose": "claims feature"
+    },
+    {
+      "local": "special-medicine.jpg",
+      "source": "https://open-cdn.zhongan.com/dm/assembler/7da3e8a02a05dcba2539aab6fb98114d.jpg",
+      "purpose": "special medicine feature"
+    },
+    {
+      "local": "medical-services.jpg",
+      "source": "https://open-cdn.zhongan.com/dm/assembler/53a65f6637abbb241474370b1bc00f42.jpg",
+      "purpose": "medical services feature"
+    },
+    {
+      "local": "footer-disclosure.png",
+      "source": "https://open-cdn.zhongan.com/dm-instrument/images/kyt9xarlcaigigvdjegugwcwfxxiblnogrh1bxng.2020414144407272.png",
+      "purpose": "footer disclosure"
+    },
+    {
+      "local": "brand-note.png",
+      "source": "https://open-cdn.zhongan.com/dm/assembler/4ee514be7ed331ef357bc76255d8d1a1.png",
+      "purpose": "brand disclosure"
+    }
+  ]
+}

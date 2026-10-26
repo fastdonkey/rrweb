@@ -21,7 +21,7 @@ type RecorderOptions = ReturnType<typeof buildPrivacyPolicy> & {
   sampling: {
     mousemove: false;
     scroll: number;
-    input: 'last';
+    input: 'all';
     media: number;
   };
   checkoutEveryNms: number;
@@ -56,7 +56,7 @@ export function buildRecorderOptions(
     sampling: {
       mousemove: false,
       scroll: 150,
-      input: 'last',
+      input: 'all',
       media: 800,
     },
     checkoutEveryNms: 60_000,

@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -18,6 +18,9 @@ const contentType = (pathname) => {
   if (pathname.endsWith('.js')) return 'text/javascript; charset=utf-8';
   if (pathname.endsWith('.css')) return 'text/css; charset=utf-8';
   if (pathname.endsWith('.json')) return 'application/json; charset=utf-8';
+  if (pathname.endsWith('.jpg') || pathname.endsWith('.jpeg'))
+    return 'image/jpeg';
+  if (pathname.endsWith('.png')) return 'image/png';
   return 'text/html; charset=utf-8';
 };
 
@@ -132,6 +135,8 @@ async function prepareAssets() {
 }
 
 async function readAssets({ rrwebBundle, playerScript, playerStyle }) {
+  const localImageRoot = path.resolve(exampleRoot, 'assets/zhongan');
+  const localImageNames = await readdir(localImageRoot);
   const entries = await Promise.all(
     [
       ['/gp/99440765', path.resolve(exampleRoot, 'index.html')],
@@ -146,6 +151,10 @@ async function readAssets({ rrwebBundle, playerScript, playerStyle }) {
         '/sdk/serialization.worker.js',
         path.resolve(packageRoot, 'dist/serialization.worker.js'),
       ],
+      ...localImageNames.map((filename) => [
+        `/insurance/assets/zhongan/${filename}`,
+        path.resolve(localImageRoot, filename),
+      ]),
     ].map(async ([route, filename]) => [route, await readFile(filename)]),
   );
   return new Map([

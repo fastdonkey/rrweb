@@ -2,189 +2,383 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    />
     <meta name="referrer" content="no-referrer" />
-    <title>安心守护医疗险｜DataInsights 本地测试</title>
+    <title>众民保（40-59岁版）｜DataInsights 本地测试镜像</title>
     <link rel="stylesheet" href="/insurance/styles.css" />
   </head>
   <body>
-    <header class="hero">
-      <div class="hero__badge">DataInsights 本地去生产化测试页</div>
-      <p class="hero__eyebrow">安心守护 · 百万医疗保障</p>
-      <h1>给家人一份从容的医疗保障</h1>
-      <p class="hero__summary">
-        一般医疗、重大疾病与住院津贴，按需组合保障计划。
-      </p>
-      <div class="hero__price">
-        <strong id="hero-price">18.00</strong><span>元起 / 月</span>
-      </div>
-    </header>
+    <div class="mobile-page">
+      <header class="topbar">
+        <button class="topbar__back" type="button" aria-label="返回">‹</button>
+        <strong>众民保普惠百万医疗险</strong>
+        <button class="topbar__share" type="button">分享</button>
+      </header>
 
-    <main>
-      <section class="card highlights" aria-labelledby="highlight-title">
-        <h2 id="highlight-title">保障亮点</h2>
-        <div class="highlight-grid">
-          <article><strong>600 万</strong><span>年度累计保额</span></article>
-          <article><strong>0 免赔</strong><span>重大疾病医疗</span></article>
-          <article><strong>不限社保</strong><span>合理医疗费用</span></article>
+      <section class="hero" aria-labelledby="product-title">
+        <p class="hero__brand">众安保险 · 自营定制</p>
+        <h1 id="product-title">众民保普惠百万医疗险</h1>
+        <p>不限健康状况，最高 400 万医疗保障</p>
+        <div class="hero__facts">
+          <div><strong>200万</strong><span>医保内医疗保障</span></div>
+          <div><strong>200万</strong><span>医保外医疗保障</span></div>
+          <div><strong>80万</strong><span>特定药品保障</span></div>
         </div>
+        <small>本页面为 DataInsights 本地测试镜像，不提供真实投保服务</small>
       </section>
 
-      <section class="card" aria-labelledby="plan-title">
-        <h2 id="plan-title">选择保障计划</h2>
-        <div class="plan-grid" role="radiogroup" aria-label="保障计划">
-          <button
-            class="plan is-selected"
-            id="plan-basic"
-            data-plan="basic"
-            role="radio"
-            aria-checked="true"
-          >
-            <span>基础版</span><strong>¥18 / 月</strong
-            ><small>一般医疗 200 万</small>
-          </button>
-          <button
-            class="plan"
-            id="plan-premium"
-            data-plan="premium"
-            role="radio"
-            aria-checked="false"
-          >
-            <span>尊享版</span><strong>¥32 / 月</strong
-            ><small>一般医疗 600 万</small>
-          </button>
-        </div>
-        <button class="text-button" id="coverage-details" type="button">
-          查看完整保障责任
-        </button>
-      </section>
-
-      <section class="card process" aria-labelledby="process-title">
-        <h2 id="process-title">投保流程</h2>
-        <ol>
-          <li>
-            <span>1</span>
+      <main>
+        <section class="card plan-choice" id="plan-choice">
+          <div class="plan-tabs" role="radiogroup" aria-label="保障计划">
+            <button
+              id="plan-basic"
+              class="plan-tab is-selected"
+              data-plan="basic"
+              role="radio"
+              aria-checked="true"
+              type="button"
+            >
+              惠选版
+            </button>
+            <button
+              id="plan-premium"
+              class="plan-tab"
+              data-plan="premium"
+              role="radio"
+              aria-checked="false"
+              type="button"
+            >
+              优享版
+            </button>
+          </div>
+          <div class="section-title">
+            <h2>保障内容</h2>
+            <button id="coverage-details" class="text-link" type="button">
+              查看详情 ›
+            </button>
+          </div>
+          <dl class="coverage-list">
             <div>
-              <strong>填写信息</strong><small>确认投保人与被保人信息</small>
+              <dt>医保范围内医疗费用</dt>
+              <dd>最高200万元</dd>
             </div>
-          </li>
-          <li>
-            <span>2</span>
             <div>
-              <strong>健康告知</strong><small>如实完成健康情况确认</small>
+              <dt>医保范围外医疗费用</dt>
+              <dd>最高200万元</dd>
             </div>
-          </li>
-          <li>
-            <span>3</span>
             <div>
-              <strong>确认投保</strong><small>核对保障与支付信息</small>
+              <dt>质子重离子医疗保险金</dt>
+              <dd>最高200万元</dd>
             </div>
-          </li>
-        </ol>
-      </section>
+            <div>
+              <dt>特定药品医疗保险金</dt>
+              <dd id="medicine-limit">最高80万元</dd>
+            </div>
+            <div>
+              <dt>重大疾病异地转诊交通费</dt>
+              <dd>最高1万元</dd>
+            </div>
+            <div>
+              <dt>救护车费用</dt>
+              <dd>最高1000元</dd>
+            </div>
+            <div>
+              <dt>互联网医院药品费用</dt>
+              <dd>最高2000元</dd>
+            </div>
+            <div>
+              <dt>犹豫期</dt>
+              <dd>2天</dd>
+            </div>
+            <div>
+              <dt>等待期</dt>
+              <dd>30天，意外伤害无等待期</dd>
+            </div>
+            <div>
+              <dt>年免赔额</dt>
+              <dd>医保内外各1万元</dd>
+            </div>
+            <div>
+              <dt>赔付比例</dt>
+              <dd>不同责任比例不同</dd>
+            </div>
+          </dl>
+        </section>
 
-      <section class="card notice" aria-labelledby="notice-title">
-        <h2 id="notice-title">投保须知</h2>
-        <p>
-          本页面仅用于 DataInsights SDK
-          的本地研发验证，不代表真实保险产品，不连接任何生产服务。
-        </p>
-        <p class="recording-notice">
-          投保过程操作、页面行为将被记录留存，用于销售可回溯、纠纷核验。
-        </p>
-      </section>
-
-      <section
-        class="card application"
-        id="application"
-        hidden
-        aria-labelledby="application-title"
-      >
-        <h2 id="application-title">填写投保信息</h2>
-        <form id="policy-form">
-          <label
-            >投保人姓名<input
-              id="policy-holder-name"
-              name="name"
-              autocomplete="off"
-              required
-          /></label>
-          <label
-            >手机号码<input
-              id="policy-holder-phone"
-              name="phone"
-              inputmode="tel"
-              autocomplete="off"
-              required
-          /></label>
-          <label
-            >证件号码<input
-              id="policy-holder-id"
-              name="idNumber"
-              autocomplete="off"
-              required
-          /></label>
-          <label
-            >保额<input
-              id="insured-amount"
-              name="amount"
-              inputmode="numeric"
-              autocomplete="off"
-              required
-          /></label>
-          <label
-            >服务密码（隐私保护验证）<input
-              id="service-password"
-              name="password"
-              type="password"
-              autocomplete="new-password"
-          /></label>
-          <button class="primary in-form" id="submit-policy" type="submit">
-            提交投保信息
+        <nav class="quick-nav" aria-label="页面导航">
+          <button type="button" data-scroll-target="insurance-form">
+            我要投保
           </button>
-        </form>
-        <div id="application-success" class="success" hidden>
-          投保信息已提交，等待本地审核。
-        </div>
-      </section>
-    </main>
+          <button type="button" data-scroll-target="product-features">
+            产品特色
+          </button>
+          <button type="button" data-scroll-target="claims-guide">
+            理赔说明
+          </button>
+        </nav>
 
-    <div
-      class="modal"
-      id="coverage-modal"
-      hidden
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="coverage-modal-title"
-    >
-      <div class="modal__panel">
-        <button
-          id="close-coverage-modal"
-          class="modal__close"
-          type="button"
-          aria-label="关闭"
+        <section class="price-card">
+          <div>
+            <span>¥</span><strong id="hero-price">9.17</strong
+            ><small>起/月</small>
+          </div>
+          <button class="primary" id="hero-apply" type="button">
+            立即投保
+          </button>
+        </section>
+
+        <section
+          class="visual-section"
+          id="product-features"
+          aria-label="产品特色"
         >
-          ×
-        </button>
-        <h2 id="coverage-modal-title">保障责任详情</h2>
-        <dl>
-          <dt>一般医疗</dt>
-          <dd>住院、特殊门诊及门诊手术费用。</dd>
-          <dt>重大疾病医疗</dt>
-          <dd>约定重大疾病合理医疗费用。</dd>
-        </dl>
+          <img
+            src="/insurance/assets/zhongan/why-medical.jpg"
+            alt="为什么要购买医疗险"
+          />
+          <img
+            src="/insurance/assets/zhongan/high-coverage.jpg"
+            alt="高额保障覆盖范围广"
+          />
+          <img
+            src="/insurance/assets/zhongan/health-access.jpg"
+            alt="免健康告知投保范围"
+          />
+          <img
+            src="/insurance/assets/zhongan/claims-service.jpg"
+            alt="理赔便捷服务"
+          />
+          <img
+            src="/insurance/assets/zhongan/special-medicine.jpg"
+            alt="特定药品保障"
+          />
+          <img
+            src="/insurance/assets/zhongan/medical-services.jpg"
+            alt="优质医疗服务"
+          />
+        </section>
+
+        <section class="card claims-guide" id="claims-guide">
+          <h2>理赔流程</h2>
+          <ol>
+            <li>
+              <b>1</b>
+              <div>
+                <strong>报案</strong><span>通过众安保险在线服务申请理赔</span>
+              </div>
+            </li>
+            <li>
+              <b>2</b>
+              <div>
+                <strong>审核</strong><span>上传诊断证明、费用清单等材料</span>
+              </div>
+            </li>
+            <li>
+              <b>3</b>
+              <div>
+                <strong>结案</strong><span>审核通过后赔款支付至指定账户</span>
+              </div>
+            </li>
+            <li>
+              <b>4</b>
+              <div><strong>支付</strong><span>全流程进度可在线查询</span></div>
+            </li>
+          </ol>
+        </section>
+
+        <section class="card faq" id="faq">
+          <h2>常见问题</h2>
+          <article>
+            <button class="faq-question" type="button" aria-expanded="true">
+              五类重大既往症包括哪些疾病？<span>⌃</span>
+            </button>
+            <p>
+              包括恶性肿瘤、严重心脑血管疾病、肝肾疾病等，具体以保险条款约定为准。
+            </p>
+          </article>
+          <article>
+            <button class="faq-question" type="button" aria-expanded="false">
+              无社保人员是否可以参保？<span>⌄</span>
+            </button>
+            <p hidden>
+              本地测试页仅模拟信息展示，实际承保条件以保险公司规则为准。
+            </p>
+          </article>
+          <article>
+            <button class="faq-question" type="button" aria-expanded="false">
+              哪些医院可以获得赔付？<span>⌄</span>
+            </button>
+            <p hidden>
+              通常为二级及以上公立医院普通部，详情请阅读正式保险条款。
+            </p>
+          </article>
+        </section>
+
+        <section class="card insurance-form" id="insurance-form" hidden>
+          <div class="section-title">
+            <h2>填写投保信息</h2>
+            <span>仅用于本地录制测试</span>
+          </div>
+          <form id="policy-form">
+            <label
+              >投保人姓名<input
+                id="policy-holder-name"
+                name="name"
+                autocomplete="off"
+                required
+            /></label>
+            <label
+              >手机号码<input
+                id="policy-holder-phone"
+                name="phone"
+                inputmode="tel"
+                autocomplete="off"
+                required
+            /></label>
+            <label
+              >证件号码<input
+                id="policy-holder-id"
+                name="idNumber"
+                autocomplete="off"
+                required
+            /></label>
+            <label
+              >出生日期<input
+                id="policy-holder-birthday"
+                name="birthday"
+                type="date"
+            /></label>
+            <label
+              >为谁投保<select id="insured-relation" name="relation">
+                <option value="self">本人</option>
+                <option value="parent">父母</option>
+                <option value="spouse">配偶</option>
+              </select></label
+            >
+            <fieldset>
+              <legend>是否有社保</legend>
+              <label class="inline"
+                ><input
+                  type="radio"
+                  name="socialSecurity"
+                  value="yes"
+                  checked
+                />有社保</label
+              ><label class="inline"
+                ><input
+                  type="radio"
+                  name="socialSecurity"
+                  value="no"
+                />无社保</label
+              >
+            </fieldset>
+            <label
+              >保额<input
+                id="insured-amount"
+                name="amount"
+                inputmode="numeric"
+                autocomplete="off"
+                required
+            /></label>
+            <label
+              >缴费方式<select id="payment-frequency" name="paymentFrequency">
+                <option value="monthly">月缴</option>
+                <option value="yearly">年缴</option>
+              </select></label
+            >
+            <label
+              >服务密码（隐私保护验证）<input
+                id="service-password"
+                name="password"
+                type="password"
+                autocomplete="new-password"
+            /></label>
+            <button
+              class="primary form-submit"
+              id="submit-policy"
+              type="submit"
+            >
+              提交投保信息
+            </button>
+          </form>
+          <div id="application-success" class="success" hidden>
+            投保信息已提交，录制数据已经保存。
+          </div>
+        </section>
+
+        <section class="disclosure">
+          <img
+            src="/insurance/assets/zhongan/brand-note.png"
+            alt="众安保险品牌说明"
+          />
+          <h2>众安，懂有温度的保险</h2>
+          <p>
+            本页面为 DataInsights
+            本地录制回放测试镜像，不构成保险销售、承保或理赔承诺。
+          </p>
+          <img
+            src="/insurance/assets/zhongan/footer-disclosure.png"
+            alt="产品信息披露说明"
+          />
+        </section>
+      </main>
+
+      <div
+        class="modal"
+        id="coverage-modal"
+        hidden
+        role="dialog"
+        aria-modal="true"
+      >
+        <section class="modal__sheet">
+          <button
+            id="close-coverage-modal"
+            class="modal__close"
+            type="button"
+            aria-label="关闭"
+          >
+            ×
+          </button>
+          <h2>保障责任详情</h2>
+          <p>
+            医保内外医疗费用、质子重离子、特定药品、异地转诊、救护车及互联网医院药品费用等责任。
+          </p>
+          <p>本地测试内容仅用于验证页面行为录制，不代表正式保险责任。</p>
+        </section>
       </div>
+
+      <footer class="purchase-bar">
+        <div>
+          <small id="selected-plan-label">惠选版</small
+          ><strong>¥<span id="selected-plan-price">9.17</span> 起/月</strong>
+        </div>
+        <button class="primary" id="start-insurance" type="button">
+          立即投保
+        </button>
+      </footer>
     </div>
 
-    <footer class="sticky-action">
-      <div>
-        <small>当前计划</small
-        ><strong id="selected-plan-label">基础版 · ¥18/月</strong>
-      </div>
-      <button class="primary" id="start-insurance" type="button">
-        开始投保
-      </button>
-    </footer>
+    <div
+      class="recording-consent"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="recording-consent-title"
+    >
+      <section class="recording-consent__sheet">
+        <p class="recording-consent__brand">
+          众安保险 <span></span> 守护每一种生活
+        </p>
+        <h2 id="recording-consent-title">温馨提示，您已进入投保流程：</h2>
+        <p>
+          请仔细阅读免责条款、投保须知等信息。为维护您的合法权益，投保过程操作、页面行为将被记录留存，用于销售可回溯、纠纷核验。
+        </p>
+        <small>DataInsights 本地测试镜像，不连接任何生产保险服务。</small>
+        <button id="consent-recording" type="button">同意并继续</button>
+      </section>
+    </div>
 
     <script src="/sdk/datainsights-browser-sdk.js"></script>
     <script src="/insurance/app.js"></script>

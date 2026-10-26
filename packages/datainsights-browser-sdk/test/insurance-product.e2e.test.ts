@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 
+import { EventType, IncrementalSource } from '@rrweb/types';
 import * as puppeteer from 'puppeteer';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
@@ -64,10 +65,32 @@ describe('local insurance product recording and replay', () => {
       await fetch(`${demo.origin}/recordings`).then((value) => value.json()),
     ).toEqual([]);
 
-    await page.click('#start-insurance');
+    const initialPage = await page.evaluate(() => ({
+      consentVisible: Boolean(document.querySelector('.recording-consent')),
+      modules: [
+        '#plan-choice',
+        '#product-features',
+        '#claims-guide',
+        '#faq',
+        '#insurance-form',
+        '.purchase-bar',
+      ].map((selector) => Boolean(document.querySelector(selector))),
+      imagesAreLocal: [...document.images].every((image) =>
+        ['127.0.0.1', 'localhost'].includes(new URL(image.currentSrc).hostname),
+      ),
+    }));
+    expect(initialPage).toEqual({
+      consentVisible: true,
+      modules: [true, true, true, true, true, true],
+      imagesAreLocal: true,
+    });
+
+    await page.click('#consent-recording');
     await page.waitForFunction(
       () => (window as any).DataInsights.getDebugInfo().state === 'recording',
     );
+    await page.waitForSelector('.recording-consent', { hidden: true });
+    await page.click('#start-insurance');
     await page.click('#plan-premium');
     await page.evaluate(() =>
       window.scrollTo(0, document.body.scrollHeight / 2),
@@ -75,7 +98,7 @@ describe('local insurance product recording and replay', () => {
     await page.click('#coverage-details');
     await page.waitForSelector('#coverage-modal:not([hidden])');
     await page.click('#close-coverage-modal');
-    await page.type('#policy-holder-name', '本地保险测试用户');
+    await page.type('#policy-holder-name', '本地保险测试用户', { delay: 120 });
     await page.type('#policy-holder-phone', '13800138000');
     await page.type('#policy-holder-id', '110101199001010011');
     await page.type('#insured-amount', '500000');
@@ -115,9 +138,17 @@ describe('local insurance product recording and replay', () => {
     });
     expect(localStores).toEqual({ journal: [], outbox: [] });
 
+    type RecordedEvent = {
+      type: EventType;
+      timestamp: number;
+      data: { source?: IncrementalSource; text?: string };
+    };
     const recordings = (await fetch(`${demo.origin}/recordings`).then((value) =>
       value.json(),
-    )) as Array<{ recordingId: string; batches: unknown[] }>;
+    )) as Array<{
+      recordingId: string;
+      batches: Array<{ events: RecordedEvent[] }>;
+    }>;
     expect(recordings).toHaveLength(1);
     const serialized = JSON.stringify(recordings);
     expect(serialized).toContain('本地保险测试用户');
@@ -127,10 +158,45 @@ describe('local insurance product recording and replay', () => {
     expect(serialized).toContain('premium');
     expect(serialized).toContain('policy-submit');
     expect(serialized).not.toContain('NeverRecordInsurancePassword!');
+    expect(serialized).not.toContain('同意并继续');
+    const recordedEvents = recordings[0].batches.flatMap(
+      (batch) => batch.events,
+    );
+    const containsRecordingConsentElement = (value: unknown): boolean => {
+      if (!value || typeof value !== 'object') return false;
+      const node = value as {
+        attributes?: { class?: string };
+        childNodes?: unknown[];
+      };
+      if (node.attributes?.class?.split(/\s+/).includes('recording-consent')) {
+        return true;
+      }
+      return node.childNodes?.some(containsRecordingConsentElement) ?? false;
+    };
+    const fullSnapshots = recordedEvents.filter(
+      (event) => event.type === EventType.FullSnapshot,
+    ) as Array<RecordedEvent & { data: { node?: unknown } }>;
+    expect(fullSnapshots).not.toHaveLength(0);
+    expect(
+      fullSnapshots.some((event) =>
+        containsRecordingConsentElement(event.data.node),
+      ),
+    ).toBe(false);
+    const nameInputEvents = recordedEvents.filter(
+      (event) =>
+        event.type === EventType.IncrementalSnapshot &&
+        event.data.source === IncrementalSource.Input &&
+        typeof event.data.text === 'string' &&
+        '本地保险测试用户'.startsWith(event.data.text),
+    );
+    expect(nameInputEvents.length).toBeGreaterThanOrEqual(4);
+    expect(
+      nameInputEvents.at(-1)!.timestamp - nameInputEvents[0].timestamp,
+    ).toBeGreaterThanOrEqual(300);
 
     await page.goto(
       `${demo.origin}/replay/${encodeURIComponent(recordings[0].recordingId)}`,
-      { waitUntil: 'networkidle0' },
+      { waitUntil: 'domcontentloaded' },
     );
     await page.waitForFunction(
       () =>
@@ -156,18 +222,21 @@ describe('local insurance product recording and replay', () => {
       paused:
         (window as any).__REPLAY_PLAYER__?.getReplayer().service.state.value ===
         'paused',
+      skipInactive: (document.querySelector('#skip') as HTMLInputElement | null)
+        ?.checked,
     }));
     expect(playerUi).toEqual({
       hasController: true,
       hasProgress: true,
       speeds: ['1x', '2x', '4x', '8x'],
       paused: true,
+      skipInactive: false,
     });
     const pausedFrameText = await page.evaluate(() => {
       const iframe = document.querySelector('#replay-root iframe');
       return (iframe as HTMLIFrameElement)?.contentDocument?.body.textContent;
     });
-    expect(pausedFrameText).toContain('给家人一份从容的医疗保障');
+    expect(pausedFrameText).toContain('众民保普惠百万医疗险');
 
     await page.click('.rr-controller__btns button');
     await page.waitForFunction(
