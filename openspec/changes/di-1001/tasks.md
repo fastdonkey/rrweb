@@ -157,12 +157,12 @@ T01..T16 → T17
   - Create: `src/shared/uuid.ts`
   - Modify: `src/runtime/client.ts`
   - Test: `test/identity.test.ts`
-- [ ] RED：先写身份来源和授权前存储测试。
-- [ ] VERIFY RED：确认身份管理器缺失导致失败。
-- [ ] GREEN：实现最小身份逻辑。
-- [ ] VERIFY GREEN：运行定向测试。
-- [ ] REFACTOR：隔离 Web Crypto 降级实现。
-- [ ] COMMIT：形成身份切片提交。
+- [x] RED：先写身份来源和授权前存储测试。
+- [x] VERIFY RED：确认身份管理器缺失导致失败。
+- [x] GREEN：实现最小身份逻辑。
+- [x] VERIFY GREEN：运行定向测试。
+- [x] REFACTOR：隔离 Web Crypto 降级实现。
+- [x] COMMIT：形成身份切片提交。
 
 ### Task 05: manageSession_navigation_preservesBoundaries
 

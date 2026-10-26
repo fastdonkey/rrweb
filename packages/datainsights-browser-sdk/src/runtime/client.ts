@@ -1,5 +1,6 @@
 import { validateConfig } from '../config/config';
 import { ConsentManager } from '../consent/consent-manager';
+import { IdentityManager } from '../identity/identity-manager';
 import type {
   ConsentEvidence,
   DataInsightsClient,
@@ -10,6 +11,7 @@ import type {
   StopReason,
 } from '../public/types';
 import { LifecycleStateMachine } from './state-machine';
+import { generateUuid } from '../shared/uuid';
 
 function failure(
   code: Extract<SDKResult, { ok: false }>['error']['code'],
@@ -33,14 +35,13 @@ function equivalentConfig(
 }
 
 function createTemporaryRecordingContext(
-  context: StartContext | undefined,
+  identityType: RecordingContext['identityType'],
 ): RecordingContext {
-  const createId = (): string => globalThis.crypto.randomUUID();
   return {
-    identityType: context?.userId ? 'host' : 'anonymous',
-    sessionId: createId(),
-    recordingId: createId(),
-    segmentId: createId(),
+    identityType,
+    sessionId: generateUuid(),
+    recordingId: generateUuid(),
+    segmentId: generateUuid(),
   };
 }
 
@@ -48,6 +49,7 @@ export function createClient(): DataInsightsClient {
   const state = new LifecycleStateMachine();
   const consentManager = new ConsentManager();
   let options: Readonly<DataInsightsOptions> | undefined;
+  let identityManager: IdentityManager | undefined;
   let startPromise: Promise<SDKResult<RecordingContext>> | undefined;
   let recordingContext: RecordingContext | undefined;
 
@@ -67,6 +69,7 @@ export function createClient(): DataInsightsClient {
             );
       }
       options = validation.value;
+      identityManager = new IdentityManager(validation.value.appKey);
       state.transition('initialized');
       return { ok: true, value: client };
     },
@@ -128,7 +131,17 @@ export function createClient(): DataInsightsClient {
               'Durable browser storage is unavailable.',
             );
           }
-          recordingContext = createTemporaryRecordingContext(context);
+          const identity = identityManager?.resolve(context?.userId);
+          if (!identity?.ok) {
+            state.transition('authorized');
+            return (
+              identity ??
+              failure('IDENTITY_INVALID', 'Identity could not be resolved.')
+            );
+          }
+          recordingContext = createTemporaryRecordingContext(
+            identity.value.type,
+          );
           state.transition('recording');
           return { ok: true, value: recordingContext };
         } catch {
@@ -142,6 +155,32 @@ export function createClient(): DataInsightsClient {
         }
       })();
       return startPromise;
+    },
+
+    identify(userId: string) {
+      if (state.state === 'destroyed') {
+        return failure('DESTROYED', 'The SDK instance has been destroyed.');
+      }
+      if (!consentManager.granted || !identityManager) {
+        return failure(
+          'CONSENT_REQUIRED',
+          'Consent is required before setting identity.',
+        );
+      }
+      return identityManager.identify(userId);
+    },
+
+    clearIdentity() {
+      if (state.state === 'destroyed') {
+        return failure('DESTROYED', 'The SDK instance has been destroyed.');
+      }
+      if (!consentManager.granted || !identityManager) {
+        return failure(
+          'CONSENT_REQUIRED',
+          'Consent is required before clearing identity.',
+        );
+      }
+      return identityManager.clear();
     },
 
     async stop(_reason: StopReason = 'manual') {

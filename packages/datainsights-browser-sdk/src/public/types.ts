@@ -100,6 +100,8 @@ export interface DataInsightsClient {
     revoke(): Promise<SDKResult>;
   };
   start(context?: StartContext): Promise<SDKResult<RecordingContext>>;
+  identify(userId: string): SDKResult;
+  clearIdentity(): SDKResult;
   stop(reason?: StopReason): Promise<SDKResult>;
   getDebugInfo(): Readonly<DebugInfo>;
   destroy(): Promise<SDKResult>;
