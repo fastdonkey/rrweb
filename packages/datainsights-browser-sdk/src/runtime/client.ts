@@ -10,6 +10,10 @@ import type {
   StartContext,
   StopReason,
 } from '../public/types';
+import {
+  startRrwebRecorder,
+  type RecorderHandle,
+} from '../recorder/rrweb-adapter';
 import { LifecycleStateMachine } from './state-machine';
 import { SessionManager } from '../session/session-manager';
 import { ActivityTracker } from './activity-tracker';
@@ -45,6 +49,7 @@ export function createClient(): DataInsightsClient {
   let segmentTimer: ReturnType<typeof setInterval> | undefined;
   let startPromise: Promise<SDKResult<RecordingContext>> | undefined;
   let recordingContext: RecordingContext | undefined;
+  let recorder: RecorderHandle | undefined;
 
   const client: DataInsightsClient = {
     init(candidate) {
@@ -141,6 +146,20 @@ export function createClient(): DataInsightsClient {
             state.transition('authorized');
             return failure('INVALID_STATE', 'Session could not be created.');
           }
+          if (typeof globalThis.document !== 'undefined') {
+            recorder = await startRrwebRecorder({
+              emit: () => undefined,
+              privacy: options?.privacy,
+            });
+            if (!recorder.started) {
+              recordingContext = undefined;
+              state.transition('authorized');
+              return failure(
+                'RECORDER_START_FAILED',
+                'The browser recorder could not be started.',
+              );
+            }
+          }
           state.transition('recording');
           activityTracker = new ActivityTracker(
             () => sessionManager?.recordActivity(),
@@ -203,6 +222,8 @@ export function createClient(): DataInsightsClient {
       }
       activityTracker?.stop();
       activityTracker = undefined;
+      recorder?.stop();
+      recorder = undefined;
       if (segmentTimer !== undefined) clearInterval(segmentTimer);
       segmentTimer = undefined;
       sessionManager?.endRecording(_reason);
@@ -228,6 +249,7 @@ export function createClient(): DataInsightsClient {
         await client.stop();
       }
       activityTracker?.stop();
+      recorder?.stop();
       if (segmentTimer !== undefined) clearInterval(segmentTimer);
       sessionManager?.destroy();
       state.transition('destroyed');

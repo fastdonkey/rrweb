@@ -209,12 +209,12 @@ T01..T16 → T17
   - Modify: `src/runtime/client.ts`
   - Test: `test/rrweb-privacy.test.ts`
   - Test: `test/fixtures/privacy-form.html`
-- [ ] RED：先写真实 rrweb 隐私 fixture 测试。
-- [ ] VERIFY RED：确认当前无 Adapter 或发生密码泄露而失败。
-- [ ] GREEN：实现最小 Adapter 和强制策略。
-- [ ] VERIFY GREEN：运行定向测试。
-- [ ] REFACTOR：保持所有 rrweb 配置集中且不可被放宽。
-- [ ] COMMIT：形成隐私录制提交。
+- [x] RED：先写真实 rrweb 隐私 fixture 测试。
+- [x] VERIFY RED：确认当前无 Adapter 或发生密码泄露而失败。
+- [x] GREEN：实现最小 Adapter 和强制策略。
+- [x] VERIFY GREEN：运行定向测试。
+- [x] REFACTOR：保持所有 rrweb 配置集中且不可被放宽。
+- [x] COMMIT：形成隐私录制提交。
 
 ### Task 07: addCustomEvent_sensitivePayload_sanitizesSafely
 
