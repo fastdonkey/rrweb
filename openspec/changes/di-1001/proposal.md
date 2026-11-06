@@ -3,9 +3,9 @@ jira: DI-1001
 jira_source: user-provided
 jira_sync: unavailable
 prd_source: openspec/changes/di-1001/prd/
-prd_version: 1.8
-proposal_version: 1.3
-prd_confirmed_at: 2026-10-26
+prd_version: 1.10
+proposal_version: 1.5
+prd_confirmed_at: 2026-10-27
 proposal_derived_at: 2026-10-25T22:33:38+08:00
 proposal_updated_at: 2026-10-26
 ---
@@ -39,10 +39,10 @@ proposal_updated_at: 2026-10-26
 | 项目 | 内容 |
 | --- | --- |
 | PRD 来源 | `openspec/changes/di-1001/prd/` |
-| PRD 版本 | v1.8 |
+| PRD 版本 | v1.10 |
 | PRD 状态 | Confirmed |
 | PRD 确认人 | 用户 |
-| PRD 确认时间 | 2026-10-25T22:33:38+08:00 |
+| PRD 确认时间 | 2026-10-27（用户确认 Trace 优先改造） |
 | Proposal 派生时间 | 2026-10-25T22:33:38+08:00 |
 
 ## 3. 背景
@@ -70,7 +70,7 @@ flowchart LR
     C --> D{用户点击开始投保}
     D -- 否 --> B
     D -- 是 --> E[嵌入方授予授权并启动]
-    E --> F[建立身份、journey、Session 与 Recording]
+    E --> F[建立身份、Trace、Session 与 Recording]
     F --> G[rrweb 录制与隐私处理]
     G --> H[1 秒或 20 事件写入 IndexedDB Journal]
     H --> I[原子组批进入 Durable Outbox]
@@ -111,14 +111,15 @@ flowchart LR
 1. 嵌入方可通过 `identify(userId)` 提供其用户唯一标识；SDK 不验证其真实身份。
 2. 嵌入方未提供标识时，SDK 在授权后生成第一方随机 UUID。
 3. 本期不使用 FingerprintJS 或其他浏览器指纹技术。
-4. 嵌入方可提供 `journeyId`，用于关联同一次投保流程中的多个录制 Session。
-5. `userId`、`journeyId`、`sessionId`、`recordingId` 和 `segmentId` 具有不同语义，不得互相替代。
+4. SDK 在一次连续录制开始时自动生成 `traceId`；嵌入方不得传入或覆盖该标识。
+5. `traceId` 是跨页连续录制的原始关联键；`journeyType`、业务 Journey 和阶段由后续 DataInsights 数据清洗产生，不由客户前端填写。
+6. `userId`、`traceId`、`sessionId`、`recordingId` 和 `segmentId` 具有不同语义，不得互相替代。
 
 ### 6.5 Session 与长录制
 
 1. 用户点击“开始投保”并完成授权/启动后创建 Session。
 2. 同一标签页内的 SPA 路由切换和页面刷新延续当前 Session；刷新恢复后先生成全量快照。
-3. 新标签页创建新 Session，但可使用相同 `journeyId` 关联同一投保流程。
+3. 新标签页创建新 Session 和新 `traceId`，避免错误拼接并行操作证据。
 4. 投保完成、取消投保、退出登录、撤回授权、嵌入方登录会话失效或连续 30 分钟无有效操作时结束 Session。
 5. 用户在空闲超时后恢复操作，需要重新满足启动条件并创建新 Session。
 6. 连续录制每 30 分钟创建新 `segmentId` 和全量快照，但不因此结束 Session。
@@ -179,7 +180,7 @@ flowchart LR
 
 - DataInsights 独立 SDK 包及公共 API；
 - Script Tag/CDN、ESM 和类型声明构建；
-- 授权、生命周期、身份、Session 和 `journeyId` 关联；
+- 授权、生命周期、身份、SDK 自动 `traceId` 和 Session 关联；
 - rrweb 录制适配、隐私规则、采样、全量快照和长录制分段；
 - 批次契约、可插拔 Transport 及测试实现；
 - IndexedDB durable outbox、断网/刷新恢复和有限重试；
@@ -206,7 +207,7 @@ flowchart LR
 3. 密码、认证信息和客户屏蔽区域不出现在事件 fixture；普通业务输入可录制并正确回放。
 4. 嵌入方用户 ID 可正确关联；未提供时只在授权后生成第一方随机 UUID；产物不包含 FingerprintJS。
 5. 同标签页刷新和 SPA 路由延续 Session，新标签页创建新 Session，30 分钟空闲和全部显式结束条件均可验证。
-6. 相同 `journeyId` 可以关联多个 Session；每 30 分钟产生新 segment 和全量快照且 `sessionId` 不变。
+6. 同一连续录制的刷新恢复保持 `traceId`；明确结束或 30 分钟空闲后再次启动产生新 `traceId`；每 30 分钟产生新 segment 但不改变 `traceId`。
 7. 内存、文件/下载和 Mock HTTP Transport 均能接收带唯一 batchId 与连续 sequence 的批次。
 8. rrweb 或 Transport 故障不会向宿主页面传播未捕获异常；重复初始化不产生重复监听和重复事件。
 9. `destroy()` 后不再产生事件，SDK 自有监听器、Observer、Worker、定时器、队列和引用均被释放。
@@ -230,7 +231,7 @@ flowchart LR
 | 3 | 默认输入策略 | 密码不可录制，其他业务输入默认录制 | 用户 | 2026-10-25 |
 | 4 | 授权规则 | 嵌入方告知；点击“开始投保”后显式启动；授权前完全不采集 | 用户 | 2026-10-25 |
 | 5 | 身份规则 | 嵌入方 ID 优先，第一方 UUID 兜底，不使用 FingerprintJS | 用户 | 2026-10-25 |
-| 6 | Session 规则 | 同标签页延续、新标签页新建、30 分钟空闲结束、`journeyId` 关联 | 用户 | 2026-10-25 |
+| 6 | Trace/Session 规则 | SDK 自动生成 `traceId`；同标签页和刷新恢复延续；明确结束或 30 分钟空闲后新建 | 用户 | 2026-10-27 |
 | 7 | 长录制规则 | 每 30 分钟技术分段但不结束 Session | 用户 | 2026-10-25 |
 | 8 | 包与发布 | `packages/datainsights-browser-sdk`、`@datainsights/browser-sdk`、`window.DataInsights`、ESM/类型/CDN | 用户 | 2026-10-25 |
 | 9 | 应用隔离 | 每个客户产品平台环境使用独立公开 appKey；SDK 不重复接收 platform，长期 secret 不进入浏览器 | 用户 | 2026-10-25 |
@@ -243,7 +244,7 @@ flowchart LR
 ## 11. ASSUMPTIONS I'M MAKING
 
 1. 嵌入方提供的 `userId` 在其自身作用域内唯一；SDK 不承担实名校验或身份真实性证明责任。
-2. `journeyId` 由需要跨 Session 还原完整投保流程的嵌入方提供；缺失时 SDK 只能按单个 Session 检索和验证。
+2. SDK 仅保证 `traceId` 表示客户端可观测的一次连续录制；跨 Trace 的业务归并、拆分与 `journeyType` 由后续数据清洗决定。
 3. 录制可作为纠纷核验材料，但证据签名、存证、访问控制、留存期限和法律可采性由后续服务端与合规变更负责。
 4. 嵌入方负责将自身登录会话失效、投保完成、取消和退出事件显式通知 SDK。
 5. CJS 不是首期必需产物，除非现有构建工具链或明确客户需求证明需要。
@@ -269,7 +270,8 @@ flowchart LR
 | --- | --- | --- | --- |
 | DataInsights SDK | 面向嵌入方的稳定产品 API，不等同于 rrweb 内部 API | PRD v1.8 | DI-1001 |
 | User | 嵌入方 ID 或 SDK 授权后生成的第一方 UUID 所代表的用户 | 用户确认 | 身份关联 |
-| Journey | 由 `journeyId` 表示的一次投保业务流程，可包含多个 Session | 用户确认 | 纠纷核验 |
+| Trace | SDK 自动生成的一次连续录制标识，是后续清洗的原始关联键 | 用户确认 | 跨页关联 |
+| Business Journey | 由 DataInsights 后续清洗对 Trace 进行归并、拆分和分类得到，客户前端不填写 | 用户确认 | 分析与纠纷核验 |
 | Session | 一次连续浏览器操作过程，按显式结束或 30 分钟空闲划分 | 用户确认 | 录制边界 |
 | Recording | SDK 实际启动后产生的一段连续录制，不含启动前历史 | PRD v1.8 | 事件输出 |
 | Segment | 长录制的技术分片，不代表 Session 或 Journey 结束 | 用户确认 | 存储与回放 |
@@ -283,7 +285,7 @@ flowchart LR
 | 页面存在密码字段 | 值不会进入任何事件、日志、队列或 Transport | 强制隐私底线 | 已确认 |
 | 嵌入方没有用户 ID | 授权后生成第一方随机 UUID | 匿名兜底 | 已确认 |
 | 同标签页刷新 | 延续 Session，生成新的全量快照 | 保持投保过程连续且可回放 | 已确认 |
-| 用户在新标签页继续同一投保 | 新建 Session，通过 `journeyId` 关联 | 避免多窗口时间线混淆 | 已确认 |
+| 用户在新标签页操作 | 新建 Trace 和 Session；后续是否归并由数据清洗决定 | 避免 SDK 错误拼接多窗口证据 | 已确认 |
 | 30 分钟无有效操作后恢复 | 原 Session 结束，重新满足启动条件后建立新 Session | 行业常用空闲边界 | 已确认 |
 | 连续录制达到 30 分钟 | 新建 segment，Session 不变 | 技术分段不改变业务语义 | 已确认 |
 | rrweb 初始化或 Transport 失败 | SDK 进入可诊断降级状态，宿主页面继续工作 | 故障隔离 | 已确认 |
@@ -293,7 +295,7 @@ flowchart LR
 ## 15. 风险
 
 - 默认录制普通业务输入会扩大敏感数据处理范围，嵌入方必须正确配置额外屏蔽规则并完成合规告知。
-- 未提供 `journeyId` 时，多个 Session 无法可靠归并为同一投保流程。
+- 前端 `traceId` 不等同于业务事务；多个 Trace 是否属于同一业务 Journey 需要后续数据清洗与业务信号支持。
 - 深度修改 rrweb 核心会增加上游同步成本，必须严格控制在 L2/L3 补丁门槛内。
 - 浏览器关闭、崩溃和移动端后台回收可能造成尾部事件缺失，前端 SDK 无法提供绝对送达保证。
 - 浏览器和框架差异可能影响长会话资源占用、页面刷新恢复和 CSP 集成。

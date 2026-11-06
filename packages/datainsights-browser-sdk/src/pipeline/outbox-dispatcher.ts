@@ -1,4 +1,8 @@
 import {
+  recoveryFor,
+  type RecoveryCoordinator,
+} from '../delivery/recovery-coordinator';
+import {
   acknowledgePersistedReceipt,
   validatePersistedReceipt,
 } from '../delivery/receipt-validator';
@@ -11,7 +15,6 @@ import type {
 } from '../transport/types';
 
 const RETRY_DELAYS_MS = [1_000, 2_000, 4_000] as const;
-const MAX_RETRY_AFTER_MS = 30_000;
 const DEFAULT_SCHEDULE_INTERVAL_MS = 30_000;
 
 type DispatchTrigger = TransportContext['trigger'];
@@ -19,6 +22,7 @@ type DispatchTrigger = TransportContext['trigger'];
 export interface DispatchOutbox {
   list(): Promise<readonly Readonly<RecordingBatchV1>[]>;
   remove(batchId: string): Promise<void>;
+  block?(batchId: string, reason: string): Promise<void>;
 }
 
 export interface DispatchResult {
@@ -32,6 +36,7 @@ export interface OutboxDispatcherOptions {
   readonly transport: Transport;
   readonly signal?: AbortSignal;
   readonly random?: () => number;
+  readonly now?: () => number;
   readonly eventTarget?: EventTarget;
   readonly scheduleIntervalMs?: number;
   readonly onBlocked?: (batch: Readonly<RecordingBatchV1>) => void;
@@ -52,10 +57,7 @@ function retryDelay(
   if (result?.status !== 'retryable' || result.retryAfterMs === undefined) {
     return jittered;
   }
-  const requested = Math.max(
-    0,
-    Math.min(result.retryAfterMs, MAX_RETRY_AFTER_MS),
-  );
+  const requested = Math.max(0, result.retryAfterMs);
   return Math.max(jittered, requested);
 }
 
@@ -66,10 +68,12 @@ export class OutboxDispatcher {
   private inFlight?: Promise<DispatchResult>;
   private interval?: ReturnType<typeof setInterval>;
   private started = false;
+  private readonly recovery: RecoveryCoordinator;
   private disposers: Array<() => void> = [];
 
   constructor(private readonly options: OutboxDispatcherOptions) {
     this.random = options.random ?? Math.random;
+    this.recovery = recoveryFor(options.transport, options.now, this.random);
     this.scheduleIntervalMs =
       options.scheduleIntervalMs ?? DEFAULT_SCHEDULE_INTERVAL_MS;
     if (options.signal) {
@@ -170,23 +174,31 @@ export class OutboxDispatcher {
   private async run(trigger: DispatchTrigger): Promise<DispatchResult> {
     let sent = 0;
     let batches = await this.options.outbox.list();
-    if (
-      (trigger === 'startup' || trigger === 'online') &&
-      this.options.transport.capability === 'persisted-receipt-v1'
-    ) {
-      const recordings = new Map<string, number>();
-      for (const batch of batches) {
-        recordings.set(
-          batch.recordingId,
-          Math.max(recordings.get(batch.recordingId) ?? 0, batch.sequenceEnd),
-        );
-      }
-      for (const [recordingId, localSequenceEnd] of recordings) {
-        await this.reconcile(recordingId, localSequenceEnd, trigger);
-      }
-      batches = await this.options.outbox.list();
+    if (trigger === 'startup' || trigger === 'online') {
+      const pending = this.recovery.recover(
+        batches,
+        this.options.outbox,
+        this.controller.signal,
+        (delay, signal) =>
+          this.options.wait
+            ? this.options.wait(delay, signal)
+            : this.wait(delay),
+        (batch) => this.notifyBlocked(batch),
+      );
+      if (pending)
+        void pending
+          .then(async () => {
+            await this.inFlight;
+            if (!this.controller.signal.aborted) await this.dispatch('retry');
+          })
+          .catch(() => undefined);
     }
     for (const batch of batches) {
+      if (
+        this.recovery.held.has(batch.batchId) ||
+        this.recovery.blocked.has(batch.batchId)
+      )
+        continue;
       if (this.controller.signal.aborted) {
         return { state: 'idle', sent, cancelled: true };
       }
@@ -196,6 +208,7 @@ export class OutboxDispatcher {
       }
       if (outcome === 'blocked') {
         this.notifyBlocked(batch);
+        if (this.recovery.blocked.has(batch.batchId)) continue;
         return { state: 'blocked', sent };
       }
       if (outcome === 'exhausted') return { state: 'backoff', sent };
@@ -225,7 +238,13 @@ export class OutboxDispatcher {
         result = { status: 'retryable', reason: 'transport-error' };
       }
 
-      if (result.status === 'rejected') return 'blocked';
+      if (result.status === 'rejected') {
+        if (['http-400', 'http-413', 'http-422'].includes(result.reason)) {
+          this.recovery.blocked.add(batch.batchId);
+          await this.options.outbox.block?.(batch.batchId, result.reason);
+        }
+        return 'blocked';
+      }
       if (validatePersistedReceipt(batch, result).ok) {
         await acknowledgePersistedReceipt(this.options.outbox, batch, result);
         return 'accepted';
@@ -249,7 +268,7 @@ export class OutboxDispatcher {
       const timer = setTimeout(() => {
         cleanup();
         resolve(true);
-      }, delayMs);
+      }, Math.min(delayMs, 2147483647));
       const abort = () => {
         clearTimeout(timer);
         cleanup();

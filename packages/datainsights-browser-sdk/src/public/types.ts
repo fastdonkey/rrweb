@@ -25,6 +25,18 @@ export type SDKResult<T = void> =
   | { ok: true; value: T }
   | { ok: false; error: { code: SDKErrorCode; message: string } };
 
+export type RecordingPayloadCodec = 'identity' | 'gzip';
+
+export interface EncodedRecordingBatch {
+  readonly format: 'datainsights-recording-batch';
+  readonly codec: RecordingPayloadCodec;
+  readonly codecVersion: 1;
+  readonly uncompressedBytes: number;
+  readonly compressedBytes: number;
+  readonly contentHash: string;
+  readonly payload: Uint8Array;
+}
+
 export interface DeliveryStateSnapshot {
   state: 'idle' | 'sending' | 'backoff' | 'reconciling' | 'blocked';
   capacityLevel: 'normal' | 'warning' | 'critical' | 'full';
@@ -100,11 +112,11 @@ export interface ConsentEvidence {
 
 export interface StartContext {
   userId?: string;
-  journeyId?: string;
 }
 
 export interface RecordingContext {
   identityType: 'host' | 'anonymous';
+  traceId: string;
   sessionId: string;
   recordingId: string;
   segmentId: string;

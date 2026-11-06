@@ -12,7 +12,7 @@
     "demo:insurance": "node scripts/insurance-demo.mjs",
     "prepublish": "tsc --noEmit && vite build",
     "test": "vitest run",
-    "test:insurance-e2e": "vitest run test/insurance-product.e2e.test.ts"
+    "test:insurance-e2e": "vitest run test/insurance-product.e2e.test.ts test/insurance-interaction-lab.e2e.test.ts"
   },
   "main": "./dist/datainsights-browser-sdk.cjs",
   "module": "./dist/datainsights-browser-sdk.js",
@@ -53,6 +53,7 @@
   "dependencies": {
     "@rrweb/record": "^2.2.0",
     "@rrweb/types": "^2.2.0",
-    "@rrweb/utils": "^2.2.0"
+    "@rrweb/utils": "^2.2.0",
+    "fflate": "^0.4.9"
   }
 }

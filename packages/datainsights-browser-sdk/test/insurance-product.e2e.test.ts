@@ -91,6 +91,157 @@ describe('local insurance product recording and replay', () => {
     );
     await page.waitForSelector('.recording-consent', { hidden: true });
     await page.click('#start-insurance');
+    const initialNoticeGate = await page.evaluate(() => ({
+      items: document.querySelectorAll('[data-insurance-notice]').length,
+      remaining: document.querySelector('#notice-confirmation-status')
+        ?.textContent,
+      submitDisabled: (
+        document.querySelector('#submit-policy') as HTMLButtonElement
+      ).disabled,
+    }));
+    expect(initialNoticeGate.items).toBe(5);
+    expect(initialNoticeGate.remaining).toContain('还需确认 5 项');
+    expect(initialNoticeGate.submitDisabled).toBe(true);
+
+    await page.click('[data-insurance-notice="application-notice"]');
+    await page.waitForSelector('#insurance-notice-modal:not([hidden])');
+    const noticeContentDimensions = await page.$eval(
+      '#insurance-notice-content',
+      (element) => ({
+        clientHeight: element.clientHeight,
+        scrollHeight: element.scrollHeight,
+      }),
+    );
+    expect(noticeContentDimensions.scrollHeight).toBeGreaterThan(
+      noticeContentDimensions.clientHeight,
+    );
+    expect(
+      await page.$eval(
+        '#confirm-insurance-notice',
+        (button) => (button as HTMLButtonElement).disabled,
+      ),
+    ).toBe(true);
+    await page.click('#close-insurance-notice');
+    expect(
+      await page.$eval(
+        '[data-insurance-notice="application-notice"]',
+        (button) => button.getAttribute('data-confirmed'),
+      ),
+    ).toBe('false');
+
+    const noticeCodes = [
+      'health-disclosure',
+      'application-notice',
+      'policy-terms',
+      'exemption-clauses',
+      'privacy-authorization',
+    ];
+    for (const code of noticeCodes) {
+      await page.click(`[data-insurance-notice="${code}"]`);
+      await page.waitForSelector('#insurance-notice-modal:not([hidden])');
+      const dimensions = await page.$eval(
+        '#insurance-notice-content',
+        (element) => ({
+          clientHeight: element.clientHeight,
+          scrollHeight: element.scrollHeight,
+        }),
+      );
+      expect(dimensions.scrollHeight).toBeGreaterThan(dimensions.clientHeight);
+      expect(
+        await page.$eval(
+          '#confirm-insurance-notice',
+          (button) => (button as HTMLButtonElement).disabled,
+        ),
+      ).toBe(true);
+      await page.$eval('#insurance-notice-content', (element) => {
+        element.scrollTop = element.scrollHeight;
+        element.dispatchEvent(new Event('scroll'));
+      });
+      await page.waitForFunction(
+        () =>
+          !(
+            document.querySelector(
+              '#confirm-insurance-notice',
+            ) as HTMLButtonElement
+          ).disabled,
+      );
+      await page.click('#confirm-insurance-notice');
+      const confirmationState = await page.evaluate((noticeCode) => {
+        const button = document.querySelector('#confirm-insurance-notice');
+        const bounds = button?.getBoundingClientRect();
+        return {
+          code: noticeCode,
+          modalHidden: document
+            .querySelector('#insurance-notice-modal')
+            ?.hasAttribute('hidden'),
+          confirmed: document
+            .querySelector(`[data-insurance-notice="${noticeCode}"]`)
+            ?.getAttribute('data-confirmed'),
+          confirmDisabled: (button as HTMLButtonElement | null)?.disabled,
+          hitTarget:
+            bounds &&
+            document.elementFromPoint(
+              bounds.left + bounds.width / 2,
+              bounds.top + bounds.height / 2,
+            )?.id,
+        };
+      }, code);
+      expect(confirmationState, code).toMatchObject({
+        modalHidden: true,
+        confirmed: 'true',
+      });
+    }
+    const completedNoticeGate = await page.evaluate(() => ({
+      confirmed: document.querySelectorAll(
+        '.insurance-notice-item.is-confirmed',
+      ).length,
+      status: document.querySelector('#notice-confirmation-status')
+        ?.textContent,
+      submitDisabled: (
+        document.querySelector('#submit-policy') as HTMLButtonElement
+      ).disabled,
+      confirmationOrder: [
+        ...document.querySelectorAll('[data-confirmation-order]'),
+      ]
+        .sort(
+          (left, right) =>
+            Number(left.getAttribute('data-confirmation-order')) -
+            Number(right.getAttribute('data-confirmation-order')),
+        )
+        .map((element) => element.getAttribute('data-insurance-notice')),
+    }));
+    expect(completedNoticeGate).toEqual({
+      confirmed: 5,
+      status: expect.stringContaining('已完成全部阅读确认'),
+      submitDisabled: false,
+      confirmationOrder: noticeCodes,
+    });
+    await page.click('[data-insurance-notice="health-disclosure"]');
+    await page.$eval('#insurance-notice-content', (element) => {
+      element.scrollTop = element.scrollHeight;
+      element.dispatchEvent(new Event('scroll'));
+    });
+    await page.waitForFunction(
+      () =>
+        !(
+          document.querySelector(
+            '#confirm-insurance-notice',
+          ) as HTMLButtonElement
+        ).disabled,
+    );
+    await page.click('#confirm-insurance-notice');
+    expect(
+      await page.$$eval('[data-confirmation-order]', (elements) =>
+        elements
+          .sort(
+            (left, right) =>
+              Number(left.getAttribute('data-confirmation-order')) -
+              Number(right.getAttribute('data-confirmation-order')),
+          )
+          .map((element) => element.getAttribute('data-insurance-notice')),
+      ),
+    ).toEqual(noticeCodes);
+
     await page.click('#plan-premium');
     await page.evaluate(() =>
       window.scrollTo(0, document.body.scrollHeight / 2),
@@ -157,11 +308,33 @@ describe('local insurance product recording and replay', () => {
     expect(serialized).toContain('500000');
     expect(serialized).toContain('premium');
     expect(serialized).toContain('policy-submit');
+    expect(serialized).toContain('insurance-notices-confirmed');
+    expect(serialized).toContain('health-disclosure');
     expect(serialized).not.toContain('NeverRecordInsurancePassword!');
     expect(serialized).not.toContain('同意并继续');
     const recordedEvents = recordings[0].batches.flatMap(
       (batch) => batch.events,
     );
+    const noticesConfirmedEvents = recordedEvents.filter(
+      (event) =>
+        event.type === EventType.Custom &&
+        (event.data as { tag?: string }).tag === 'insurance-notices-confirmed',
+    );
+    expect(noticesConfirmedEvents).toHaveLength(1);
+    expect(noticesConfirmedEvents[0].data).toEqual({
+      tag: 'insurance-notices-confirmed',
+      payload: {
+        noticeVersion: 'local-insurance-notices-v1',
+        documentCodes: [
+          'application-notice',
+          'policy-terms',
+          'health-disclosure',
+          'exemption-clauses',
+          'privacy-authorization',
+        ],
+        confirmationOrder: noticeCodes,
+      },
+    });
     const containsRecordingConsentElement = (value: unknown): boolean => {
       if (!value || typeof value !== 'object') return false;
       const node = value as {
@@ -218,7 +391,7 @@ describe('local insurance product recording and replay', () => {
       ),
       speeds: [...document.querySelectorAll('.rr-controller__btns button')]
         .map((button) => button.textContent?.trim())
-        .filter((text) => /^\d+x$/.test(text ?? '')),
+        .filter((text) => /^\d+(?:\.\d+)?x$/.test(text ?? '')),
       paused:
         (window as any).__REPLAY_PLAYER__?.getReplayer().service.state.value ===
         'paused',
@@ -228,7 +401,7 @@ describe('local insurance product recording and replay', () => {
     expect(playerUi).toEqual({
       hasController: true,
       hasProgress: true,
-      speeds: ['1x', '2x', '4x', '8x'],
+      speeds: ['0.75x', '1x', '2x', '4x', '8x'],
       paused: true,
       skipInactive: false,
     });
@@ -258,6 +431,12 @@ describe('local insurance product recording and replay', () => {
         )?.value,
         success: replayDocument.querySelector('#application-success')
           ?.textContent,
+        confirmedNotices: replayDocument.querySelectorAll(
+          '.insurance-notice-item.is-confirmed',
+        ).length,
+        noticeStatus: replayDocument.querySelector(
+          '#notice-confirmation-status',
+        )?.textContent,
         scriptExecuted: (window as any).__REPLAY_SCRIPT_EXECUTED__ === true,
       };
     });
@@ -266,6 +445,8 @@ describe('local insurance product recording and replay', () => {
       name: '本地保险测试用户',
       amount: '500000',
       success: expect.stringContaining('投保信息已提交'),
+      confirmedNotices: 5,
+      noticeStatus: expect.stringContaining('已完成全部阅读确认'),
       scriptExecuted: false,
     });
     expect(nonLocalRequests).toEqual([]);

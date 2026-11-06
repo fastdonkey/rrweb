@@ -9,6 +9,7 @@
     <meta name="referrer" content="no-referrer" />
     <title>众民保（40-59岁版）｜DataInsights 本地测试镜像</title>
     <link rel="stylesheet" href="/insurance/styles.css" />
+    <link rel="stylesheet" href="/insurance/interaction-lab.css" />
   </head>
   <body>
     <div class="mobile-page">
@@ -217,6 +218,254 @@
           </article>
         </section>
 
+        <section class="card interaction-lab" id="interaction-lab">
+          <div class="lab-heading">
+            <div>
+              <span class="lab-kicker">DataInsights Recording Lab</span>
+              <h2>复杂交互录制实验室</h2>
+              <p>集中验证动态 DOM、横向滚动、虚拟列表及浏览器能力边界。</p>
+            </div>
+            <button
+              id="lab-checkpoint"
+              class="lab-outline-button"
+              type="button"
+            >
+              记录当前状态
+            </button>
+          </div>
+
+          <section class="lab-component" data-lab-component="tabs">
+            <div class="lab-component__title">
+              <h3>保障内容页签</h3>
+              <span class="lab-capability is-full">完整还原</span>
+            </div>
+            <div class="lab-tabs" role="tablist" aria-label="实验保障页签">
+              <button
+                type="button"
+                role="tab"
+                data-lab-tab="medical"
+                aria-selected="true"
+              >
+                医疗
+              </button>
+              <button
+                type="button"
+                role="tab"
+                data-lab-tab="claims"
+                aria-selected="false"
+              >
+                理赔
+              </button>
+              <button
+                type="button"
+                role="tab"
+                data-lab-tab="services"
+                aria-selected="false"
+              >
+                服务
+              </button>
+            </div>
+            <div id="lab-tab-panel" class="lab-state-panel">
+              医疗保障动态内容
+            </div>
+            <p id="lab-tab-status" class="lab-status">当前页签：医疗</p>
+          </section>
+
+          <section class="lab-component" data-lab-component="accordion">
+            <div class="lab-component__title">
+              <h3>独立手风琴</h3>
+              <span class="lab-capability is-full">完整还原</span>
+            </div>
+            <div id="lab-accordion-list" class="lab-accordion">
+              <article>
+                <button
+                  type="button"
+                  data-lab-accordion="waiting-period"
+                  aria-expanded="false"
+                >
+                  等待期变化 <span>＋</span>
+                </button>
+                <p hidden>等待期内状态变化测试内容。</p>
+              </article>
+              <article>
+                <button
+                  type="button"
+                  data-lab-accordion="hospital-scope"
+                  aria-expanded="false"
+                >
+                  医院范围 <span>＋</span>
+                </button>
+                <p hidden>医院范围动态展开内容。</p>
+              </article>
+              <article>
+                <button
+                  type="button"
+                  data-lab-accordion="medicine"
+                  aria-expanded="false"
+                >
+                  药品目录 <span>＋</span>
+                </button>
+                <p hidden>药品目录动态展开内容。</p>
+              </article>
+              <article>
+                <button
+                  type="button"
+                  data-lab-accordion="renewal"
+                  aria-expanded="false"
+                >
+                  续保规则 <span>＋</span>
+                </button>
+                <p hidden>续保规则动态展开内容。</p>
+              </article>
+            </div>
+          </section>
+
+          <section class="lab-component" data-lab-component="autocomplete">
+            <div class="lab-component__title">
+              <h3>搜索联想与键盘选择</h3>
+              <span class="lab-capability is-full">完整还原</span>
+            </div>
+            <label class="lab-field"
+              >搜索医院、药品或职业
+              <input
+                id="lab-search"
+                type="search"
+                autocomplete="off"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-controls="lab-search-results"
+                aria-expanded="false"
+              />
+            </label>
+            <div
+              id="lab-search-results"
+              class="lab-search-results"
+              role="listbox"
+              hidden
+            ></div>
+            <p id="lab-selected-suggestion" class="lab-status">尚未选择</p>
+          </section>
+
+          <section class="lab-component" data-lab-component="carousel">
+            <div class="lab-component__title">
+              <h3>横向滑动方案卡</h3>
+              <span class="lab-capability is-full">完整还原</span>
+            </div>
+            <div
+              id="lab-slide-track"
+              class="lab-slide-track"
+              tabindex="0"
+              aria-label="横向方案列表"
+            ></div>
+            <div class="lab-actions">
+              <button id="lab-slide-prev" type="button">上一项</button
+              ><span id="lab-slide-status">1 / 6</span
+              ><button id="lab-slide-next" type="button">下一项</button>
+            </div>
+          </section>
+
+          <section class="lab-component" data-lab-component="toast">
+            <div class="lab-component__title">
+              <h3>短暂 Toast</h3>
+              <span class="lab-capability is-full">完整还原</span>
+            </div>
+            <div class="lab-actions">
+              <button type="button" data-toast-kind="success">成功</button
+              ><button type="button" data-toast-kind="warning">警告</button
+              ><button type="button" data-toast-kind="error">失败</button>
+            </div>
+            <p id="lab-toast-summary" class="lab-status">累计触发 0 次</p>
+          </section>
+
+          <section class="lab-component" data-lab-component="virtual-list">
+            <div class="lab-component__title">
+              <h3>200 条虚拟医院列表</h3>
+              <span class="lab-capability is-full">完整还原</span>
+            </div>
+            <div
+              id="lab-virtual-list"
+              class="lab-virtual-list"
+              tabindex="0"
+              aria-label="虚拟医院列表"
+            >
+              <div id="lab-virtual-content"></div>
+            </div>
+            <p id="lab-virtual-range" class="lab-status"></p>
+            <p id="lab-virtual-selection" class="lab-status">尚未选择医院</p>
+          </section>
+
+          <section class="lab-component" data-lab-component="upload">
+            <div class="lab-component__title">
+              <h3>文件上传元数据</h3>
+              <span class="lab-capability is-state">仅状态可见</span>
+            </div>
+            <input
+              id="lab-file"
+              type="file"
+              accept="image/png,image/jpeg,application/pdf"
+            />
+            <p id="lab-file-status" class="lab-status">尚未选择文件</p>
+            <button id="lab-file-clear" type="button">清除文件状态</button>
+          </section>
+
+          <section class="lab-component" data-lab-component="refresh">
+            <div class="lab-component__title">
+              <h3>刷新恢复</h3>
+              <span class="lab-capability is-full">完整还原</span>
+            </div>
+            <p id="lab-restore-status" class="lab-status">当前为首次加载</p>
+            <button id="lab-refresh" type="button">刷新并恢复实验室</button>
+          </section>
+
+          <section
+            class="lab-component lab-boundary"
+            data-lab-component="canvas"
+          >
+            <div class="lab-component__title">
+              <h3>Canvas 手写轨迹</h3>
+              <span class="lab-capability is-boundary">画面采样 · 5fps</span>
+            </div>
+            <div id="lab-canvas-mount"></div>
+          </section>
+          <section
+            class="lab-component lab-boundary"
+            data-lab-component="webgl"
+          >
+            <div class="lab-component__title">
+              <h3>WebGL 动画</h3>
+              <span class="lab-capability is-boundary">画面采样 · 5fps</span>
+            </div>
+            <div id="lab-webgl-mount"></div>
+          </section>
+          <section
+            class="lab-component lab-boundary"
+            data-lab-component="iframes"
+          >
+            <div class="lab-component__title">
+              <h3>iframe 边界</h3>
+              <span class="lab-capability is-state">按来源区分</span>
+            </div>
+            <div id="lab-iframe-mount"></div>
+          </section>
+          <section class="lab-component lab-boundary" data-lab-component="pdf">
+            <div class="lab-component__title">
+              <h3>PDF 阅读器模拟</h3>
+              <span class="lab-capability is-state">嵌套 DOM</span>
+            </div>
+            <div id="lab-pdf-mount"></div>
+          </section>
+          <section
+            class="lab-component lab-boundary"
+            data-lab-component="media"
+          >
+            <div class="lab-component__title">
+              <h3>权限型媒体</h3>
+              <span class="lab-capability is-boundary">不申请真实权限</span>
+            </div>
+            <div id="lab-media-mount"></div>
+          </section>
+        </section>
+
         <section class="card insurance-form" id="insurance-form" hidden>
           <div class="section-title">
             <h2>填写投保信息</h2>
@@ -296,10 +545,29 @@
                 type="password"
                 autocomplete="new-password"
             /></label>
+            <section
+              class="insurance-notices"
+              aria-labelledby="insurance-notices-title"
+            >
+              <div class="insurance-notices__header">
+                <div>
+                  <h3 id="insurance-notices-title">投保文件与声明</h3>
+                  <p>请逐项阅读至底部并完成确认</p>
+                </div>
+                <span id="notice-confirmation-status" aria-live="polite"
+                  >还需确认 5 项</span
+                >
+              </div>
+              <div
+                id="insurance-notice-list"
+                class="insurance-notice-list"
+              ></div>
+            </section>
             <button
               class="primary form-submit"
               id="submit-policy"
               type="submit"
+              disabled
             >
               提交投保信息
             </button>
@@ -350,6 +618,48 @@
         </section>
       </div>
 
+      <div
+        class="modal insurance-notice-modal"
+        id="insurance-notice-modal"
+        hidden
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="insurance-notice-title"
+      >
+        <section class="modal__sheet insurance-notice-modal__sheet">
+          <button
+            id="close-insurance-notice"
+            class="modal__close"
+            type="button"
+            aria-label="关闭阅读文件"
+          >
+            ×
+          </button>
+          <div class="insurance-notice-modal__heading">
+            <small id="insurance-notice-version"></small>
+            <h2 id="insurance-notice-title"></h2>
+            <p>请完整阅读以下内容，滚动至底部后完成确认。</p>
+          </div>
+          <div
+            id="insurance-notice-content"
+            class="insurance-notice-content"
+            tabindex="0"
+            aria-label="保险文件正文"
+          ></div>
+          <p id="insurance-notice-read-hint" class="insurance-notice-read-hint">
+            请继续向下阅读
+          </p>
+          <button
+            id="confirm-insurance-notice"
+            class="primary insurance-notice-confirm"
+            type="button"
+            disabled
+          >
+            我已阅读并确认
+          </button>
+        </section>
+      </div>
+
       <footer class="purchase-bar">
         <div>
           <small id="selected-plan-label">惠选版</small
@@ -382,5 +692,6 @@
 
     <script src="/sdk/datainsights-browser-sdk.js"></script>
     <script src="/insurance/app.js"></script>
+    <script src="/insurance/interaction-lab.js"></script>
   </body>
 </html>

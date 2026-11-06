@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DataInsights iframe 交互测试</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 12px;
+        background: #fffaf6;
+        color: #4d3b2f;
+        font: 13px/1.5 sans-serif;
+      }
+      button,
+      input {
+        width: 100%;
+        margin: 5px 0;
+        padding: 9px;
+        border: 1px solid #dfcdbf;
+        border-radius: 7px;
+        background: #fff;
+      }
+      #frame-scroll {
+        height: 100px;
+        margin-top: 8px;
+        overflow: auto;
+        border: 1px solid #eadfd6;
+        border-radius: 7px;
+      }
+      #frame-scroll div {
+        height: 42px;
+        padding: 10px;
+        border-bottom: 1px solid #eee5dd;
+      }
+    </style>
+  </head>
+  <body>
+    <strong>iframe 内部交互页</strong>
+    <button id="frame-counter" type="button">计数 +1</button>
+    <input id="frame-input" autocomplete="off" placeholder="iframe 内输入" />
+    <p id="frame-status">当前计数：0</p>
+    <div id="frame-scroll" tabindex="0" aria-label="iframe 内滚动列表"></div>
+    <script>
+      (() => {
+        let count = 0;
+        const status = document.querySelector('#frame-status');
+        document
+          .querySelector('#frame-counter')
+          .addEventListener('click', () => {
+            count += 1;
+            status.textContent = `当前计数：${count}`;
+          });
+        const scroll = document.querySelector('#frame-scroll');
+        for (let index = 1; index <= 12; index += 1) {
+          const item = document.createElement('div');
+          item.textContent = `iframe 滚动项目 ${index}`;
+          scroll.append(item);
+        }
+      })();
+    </script>
+  </body>
+</html>

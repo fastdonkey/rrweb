@@ -124,18 +124,20 @@ export async function installBootstrap(
 
   const eventTarget = dependencies.document ?? globalThis.document;
   if (!eventTarget) return invalidBootstrap();
-  const resolved = await (
+  const trustedConfigOrigin = defaultConfigOrigin;
+  const resolveConfig =
     dependencies.resolveConfig ??
-    ((appKey: string) =>
+    ((appKey: string, signal?: AbortSignal) =>
       resolveRemoteConfig(appKey, {
-        trustedConfigOrigin: defaultConfigOrigin,
-      }))
-  )(candidate.appKey);
+        trustedConfigOrigin,
+        signal,
+      }));
+  const resolved = await resolveConfig(candidate.appKey);
   if (!resolved.ok) return resolved;
 
-  const transport = (dependencies.createTransport ?? createHttpTransport)(
-    resolved.value,
-  );
+  const transport = dependencies.createTransport
+    ? dependencies.createTransport(resolved.value)
+    : createHttpTransport(resolved.value, undefined, { resolveConfig });
   const initialized = client.init({
     appKey: candidate.appKey,
     transport,
@@ -148,7 +150,10 @@ export async function installBootstrap(
     ...(candidate.privacy ? { privacy: candidate.privacy } : {}),
     ...(candidate.debug === undefined ? {} : { debug: candidate.debug }),
   });
-  if (!initialized.ok) return initialized;
+  if (!initialized.ok) {
+    await transport.destroy?.();
+    return initialized;
+  }
 
   let disposed = false;
   let starting = false;
@@ -197,6 +202,7 @@ export async function installBootstrap(
         if (disposed) return;
         disposed = true;
         eventTarget.removeEventListener('click', listener, true);
+        void transport.destroy?.();
       },
     }),
   };

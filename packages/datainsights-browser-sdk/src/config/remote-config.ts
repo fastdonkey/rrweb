@@ -170,6 +170,14 @@ export async function resolveRemoteConfig(
         headers: { Accept: 'application/json' },
       },
     );
+    if (response.status === 403)
+      return {
+        ok: false,
+        error: {
+          code: 'APPLICATION_DISABLED',
+          message: 'The application is not authorized.',
+        },
+      };
     if (!response.ok) throw new Error('remote-config-http-failure');
     return validateRemoteConfig(
       appKey,

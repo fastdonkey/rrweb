@@ -49,7 +49,12 @@ describe('rrweb privacy adapter', () => {
       maskAllInputs: false,
       maskInputOptions: { password: true },
       blockClass: 'rr-sensitive',
-      sampling: { input: 'all' },
+      sampling: {
+        mousemove: false,
+        scroll: 50,
+        input: 'all',
+        media: 800,
+      },
       recordCanvas: false,
       recordCrossOriginIframes: false,
       checkoutEveryNms: 60_000,

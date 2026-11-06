@@ -1,22 +1,22 @@
-# DI-1001 DataInsights 前端 SDK 开发任务清单 v1.0
+# DI-1001 DataInsights 前端 SDK 开发任务清单 v1.4
 
 ## 基本信息
 
-| 项目     | 内容                                              |
-| -------- | ------------------------------------------------- |
-| 功能名称 | 基于 rrweb Fork 构建 DataInsights 浏览器 SDK      |
-| 需求编号 | DI-1001                                           |
-| 任务总数 | 23                                                |
-| 创建日期 | 2026-10-26                                        |
-| 参考文档 | `proposal.md` v1.3、`design.md` v1.4、`prd/` v1.8 |
-| 当前阶段 | Apply Complete / Review Ready                      |
-| 实现分支 | `futrue-v1`                                       |
+| 项目     | 内容                                                                   |
+| -------- | ---------------------------------------------------------------------- |
+| 功能名称 | 基于 rrweb Fork 构建 DataInsights 浏览器 SDK                           |
+| 需求编号 | DI-1001                                                                |
+| 任务总数 | 35（T01-T23 已完成；T24-T28 SDK 待办；T29-T32 后续链路；T33-T35 优先） |
+| 创建日期 | 2026-10-26；2026-10-27 增补压缩与 Trace 链路                           |
+| 参考文档 | `proposal.md` v1.5、`design.md` v1.7、`prd/` v1.10                     |
+| 当前阶段 | 基线 Apply Complete；T33-T35 已实现待提交；压缩主线暂停于 T24          |
+| 实现分支 | `futrue-v1`                                                            |
 
 ## 范围护栏
 
-本任务清单只实现 SDK 边界内能力：授权后录制、隐私、身份与 Session、Replay 事件分段、本地持久化、可靠投递契约、Mock 验证、本地沙箱回放及上游升级保障。
+本任务清单当前可实施范围只包含 SDK 边界内能力：授权后录制、隐私、身份与 Session、Replay 事件分段、本地持久化、可靠投递契约、Mock 验证、本地沙箱回放、无损压缩编码及上游升级保障。
 
-以下能力不进入 DI-1001：生产接收服务、服务端去重/乱序窗口/迟到事件水位线/补偿计算、趋势/漏斗/留存/路径正式语义、服务端 Replay Manifest/对象存储/正式播放器、留存删除传播和法律存证。
+以下能力不进入 DI-1001 的当前 Apply：生产接收服务、服务端去重/乱序窗口/迟到事件水位线/补偿计算、趋势/漏斗/留存/路径正式语义、服务端 Replay Manifest/对象存储/正式播放器、留存删除传播和法律存证。T29-T32 仅用于保存端到端压缩链路待办，实施前必须建立独立 OpenSpec Change 并重新完成 Proposal、Design 和 Tasks 审批。
 
 ## 任务拆分原则
 
@@ -45,20 +45,31 @@ T05 + T06 → T08 → T09 → T10 → T11 → T12 → T13
 T03 + T13 → T14 → T15
 T05 + T06 + T10 → T16
 T01..T16 → T17
+T05 + T10 → T33  （用户确认优先于 T25 执行）
+T06 + T22 → T34  （用户确认优先于 T25 执行）
+T22 + T34 → T35  （扩展本地保险复杂交互验证）
+T10 + T17 → T24 → T25 → T26 → T27 → T28
+T28 → T29 → T30 → T31 → T32  （T29 起必须迁移到后续 OpenSpec Change）
 ```
 
 顺序原因：公共类型和授权门禁是所有行为的入口；身份、Session 和隐私录制必须先建立事件语义；Journal/Outbox 必须先于 Transport 删除与恢复策略；回执、调度和对账依赖稳定批次；浏览器入口、回放验证和发布回归最后集成。
 
 ## Checkpoint 计划
 
-| Checkpoint | After Tasks | Re-check Focus                                           |
-| ---------- | ----------- | -------------------------------------------------------- |
-| CP-1       | T01-T03     | 包边界、公共 API、授权前零采集和无顶层副作用             |
-| CP-2       | T04-T07     | 身份/Session 边界、密码强制保护、rrweb 核心零修改        |
-| CP-3       | T08-T10     | 1 秒/20 事件窗口、原子恢复、100 MiB 容量、批次哈希一致性 |
-| CP-4       | T11-T13     | 持久化回执删除门槛、重试调度、缺口对账与定向重传         |
-| CP-5       | T14-T15     | 本地诊断无遥测、资源释放、Script Tag 生命周期和 CSP      |
-| CP-6       | T16-T17     | Replay 分层边界、沙箱安全、性能预算、构建产物和上游回归  |
+| Checkpoint | After Tasks | Re-check Focus                                              |
+| ---------- | ----------- | ----------------------------------------------------------- |
+| CP-1       | T01-T03     | 包边界、公共 API、授权前零采集和无顶层副作用                |
+| CP-2       | T04-T07     | 身份/Session 边界、密码强制保护、rrweb 核心零修改           |
+| CP-3       | T08-T10     | 1 秒/20 事件窗口、原子恢复、100 MiB 容量、批次哈希一致性    |
+| CP-4       | T11-T13     | 持久化回执删除门槛、重试调度、缺口对账与定向重传            |
+| CP-5       | T14-T15     | 本地诊断无遥测、资源释放、Script Tag 生命周期和 CSP         |
+| CP-6       | T16-T17     | Replay 分层边界、沙箱安全、性能预算、构建产物和上游回归     |
+| CP-Trace   | T33         | SDK 自动 Trace 生命周期、刷新恢复、终止轮换和批次关联       |
+| CP-Pacing  | T34         | 50ms 滚动采样、0.75x 核验速度、默认 1x 和不跳过空闲         |
+| CP-Notices | T35         | 五份须知逐项阅读、滚动门禁、幂等确认、提交与回放证据        |
+| CP-7A      | T24-T25     | 压缩协议版本、无损往返、Worker/兼容降级和主线程预算         |
+| CP-7B      | T26-T28     | IndexedDB 实际占用、压缩传输、回放一致性和真实压缩率        |
+| CP-8       | T29-T32     | 后端接收、对象存储、Replay 读取和生命周期；后续 Change 执行 |
 
 ## 任务列表
 
@@ -615,6 +626,305 @@ T01..T16 → T17
 - [x] REFACTOR
 - [x] COMMIT
 
+### Task 33: generateTraceId_sdkOwned_groupsOneContinuousRecording
+
+**任务编号**：DEV-DI-033
+**优先级/范围**：P0 / 当前 SDK，优先于 T25
+
+- Goal: 由 SDK 自动建立一次连续录制的 `traceId`，作为跨页关联与后续数据清洗的原始键。
+- Acceptance:
+  - `start()` 只允许客户传入可选 `userId`，不接收 `traceId`、`journeyId` 或 `journeyType`。
+  - SDK 使用 UUIDv4 自动生成 `traceId`；客户输入无法覆盖。
+  - 同标签页手动暂停后继续与同源刷新恢复保持 `traceId`；新标签页保守新建。
+  - completed/cancelled/logout/auth-expired/consent-revoked/idle-timeout 结束 Trace，之后再次启动产生新值。
+  - `RecordingContext` 和每个 `RecordingBatchV1` 都包含相同 `traceId`；不对其编码保险或其他行业语义。
+- Verify: `yarn workspace @datainsights/browser-sdk vitest run test/session-manager.test.ts test/batcher-integrity.test.ts`
+- Dependencies: T05、T10。
+- Files:
+  - Modify: `src/public/types.ts`
+  - Modify: `src/session/session-manager.ts`
+  - Modify: `src/runtime/client.ts`
+  - Modify: `src/pipeline/batcher.ts`
+  - Test: `test/session-manager.test.ts`
+  - Test: `test/batcher-integrity.test.ts`
+- [x] RED：先写 SDK 自动 Trace、刷新继承和终止轮换测试。
+- [x] VERIFY RED：定向测试 7 个用例因 `traceId` 缺失按预期失败。
+- [x] GREEN：在 Session 持久状态中生成/恢复 Trace，并贯穿运行时和批次上下文。
+- [x] VERIFY GREEN：定向 32 tests、SDK 全量 179 tests、类型检查和构建通过。
+- [x] REFACTOR：移除客户 `journeyId` 契约，兼容旧 Session 存储并为其自动补生 `traceId`。
+- [ ] COMMIT
+
+### Task 34: improveReplayPacing_higherScrollFidelity_offersReviewSpeed
+
+**任务编号**：DEV-DI-034
+**优先级/范围**：P0 / 当前 SDK 与本地核验播放器，优先于 T25
+
+- Goal: 降低滚动回放的跳跃感，并提供不伪装为 1x 的慢速人工核验选项。
+- Acceptance:
+  - rrweb scroll 采样由 150ms 调整为 50ms，`mousemove` 继续关闭，`input: 'all'` 不变。
+  - 本地播放器提供 `0.75x/1x/2x/4x/8x`，默认仍为 1x。
+  - `skipInactive` 保持 false，播放不改写原始事件时间戳。
+  - 不修改 rrweb 核心 Timer，不引入合成滚动插值，不将 0.75x 标识为 1x。
+- Verify: `yarn workspace @datainsights/browser-sdk vitest run test/rrweb-privacy.test.ts test/insurance-product.e2e.test.ts`
+- Dependencies: T06、T22。
+- Files:
+  - Modify: `src/recorder/rrweb-adapter.ts`
+  - Modify: `examples/insurance-product/replay.html`
+  - Test: `test/rrweb-privacy.test.ts`
+  - Test: `test/insurance-product.e2e.test.ts`
+- [x] RED：先增加 50ms scroll 配置与 0.75x 播放按钮断言。
+- [x] VERIFY RED：单元测试因实际仍为 150ms 失败；E2E 因缺少 0.75x 失败。
+- [x] GREEN：仅调整 Recorder scroll 节流和本地播放器速度列表。
+- [x] VERIFY GREEN：定向 2 files / 6 tests 通过。
+- [x] REFACTOR：保持时间语义与 rrweb 核心零侵入，明确不引入视觉插值。
+- [ ] COMMIT
+
+### Task 35: confirmInsuranceNotices_scrollGate_replaysFullProcess
+
+**任务编号**：DEV-DI-035
+**优先级/范围**：P0 / 本地保险 Demo 与真实浏览器验证
+
+- Goal: 构建保险行业常见的多份须知逐项阅读确认流程，验证 SDK 可以完整录制并回放打开、滚动、确认顺序、状态变化与提交门禁。
+- Acceptance:
+  - 固定展示投保须知、保险条款、健康告知、免责条款和个人信息处理授权书五项去生产化模拟文件。
+  - 每项打开共享底部弹层；未滚动到底不能确认，关闭未读文件不改变状态。
+  - 确认幂等并保留首次确认顺序；全部确认前提交按钮禁用，完成后才允许提交。
+  - `insurance-notices-confirmed` 自定义事件只出现一次，只含版本、文档代码与确认顺序，不含正文或用户输入。
+  - 真实回放最终显示五项已确认；密码保护、播放器速度、进度条、沙箱和零外网断言不回归。
+  - 该能力只扩展保险行业 Demo，不修改通用 SDK API 或 rrweb 核心。
+- Verify: `yarn workspace @datainsights/browser-sdk vitest run test/insurance-product.e2e.test.ts`
+- Dependencies: T22、T34。
+- Files:
+  - Modify: `examples/insurance-product/index.html`
+  - Modify: `examples/insurance-product/styles.css`
+  - Modify: `examples/insurance-product/app.js`
+  - Test: `test/insurance-product.e2e.test.ts`
+  - Docs: `docs/superpowers/specs/2026-10-27-insurance-notice-confirmation-design.md`
+- [x] RED：保险 E2E 在应有 5 项须知但实际为 0 项处失败。
+- [x] VERIFY RED：失败原因为须知 DOM 和交互尚不存在，不是构建或测试环境错误。
+- [x] GREEN：实现固定文档模型、共享弹层、到底检测、幂等确认、提交门禁和脱敏自定义事件。
+- [x] VERIFY GREEN：保险 E2E 真实 Chrome 通过。
+- [x] REFACTOR：使用单个共享弹层与安全 DOM API，未引入外部资源或 rrweb 核心修改。
+- [ ] COMMIT
+
+### Task 36: exerciseComplexBrowserInteractions_recordsBoundariesSafely
+
+**任务编号**：DEV-DI-036
+**优先级/范围**：P1/P2 / 本地保险 Demo 与真实浏览器验证
+
+- Goal: 在同一产品页集中构建复杂 DOM 交互和浏览器能力边界，验证 SDK 对过程状态、嵌套上下文及非 DOM 内容的实际录制效果。
+- Acceptance:
+  - P1 覆盖页签、手风琴、搜索联想、横向滑动、Toast、200 条虚拟列表、文件元数据和刷新恢复。
+  - P2 覆盖 Canvas、WebGL、同源/跨源 iframe、本地 PDF 阅读器模拟及权限型媒体边界。
+  - Canvas/WebGL 不声明像素或帧可回放；跨源 iframe 保持隔离；媒体组件不调用真实媒体权限 API。
+  - 文件上传只展示名称、类型、大小，录制中不得出现文件正文和本机绝对路径。
+  - 自定义事件只含固定状态、计数和索引，不含搜索、文件或 iframe 自由文本。
+  - 真实回放恢复关键外围 DOM 状态，全部 HTTP(S) 请求仅访问 `127.0.0.1` 或 `localhost`。
+  - 只扩展本地 Demo 和测试，不修改 SDK API 或 rrweb 核心。
+- Verify: `yarn workspace @datainsights/browser-sdk vitest run test/insurance-interaction-lab.e2e.test.ts`
+- Dependencies: T22、T35。
+- Files:
+  - Create: `examples/insurance-product/interaction-lab.js`
+  - Create: `examples/insurance-product/interaction-lab.css`
+  - Create: `examples/insurance-product/iframe-lab.html`
+  - Create: `examples/insurance-product/pdf-reader.html`
+  - Modify: `examples/insurance-product/index.html`
+  - Modify: `scripts/insurance-demo.mjs`
+  - Test: `test/insurance-interaction-lab.e2e.test.ts`
+  - Docs: `docs/superpowers/specs/2026-10-27-insurance-interaction-stress-test-design.md`
+- [x] RED：P1 测试因缺少 `#interaction-lab` 失败，P2 测试因缺少 iframe 失败。
+- [x] VERIFY RED：两次失败均来自目标组件缺失，构建、浏览器和 SDK 初始化正常。
+- [x] GREEN：实现 P1 复杂 DOM 交互、P2 能力边界、状态恢复和安全事件。
+- [x] VERIFY GREEN：真实 Chrome 完成录制、停止、刷新恢复与回放断言。
+- [x] REFACTOR：虚拟列表相同范围不重复回收节点，复杂逻辑与投保 `app.js` 隔离。
+- [ ] COMMIT
+
+## 压缩链路待办
+
+压缩采用无损策略，不允许通过丢弃输入过程、降低关键事件采样、删除全量快照或缩短时间间隔换取体积下降。上传 Batch 与长期存储 Segment 是不同边界：SDK 负责生成可校验的压缩批次，生产服务端后续可在验收后合并并重新编码长期 Segment。
+
+当前先完成 T33-T34，然后恢复 T25-T28。T29-T32 仅记录完整链路，属于后续生产服务端 Change，不因出现在本文件中而获得实施授权。
+
+### Task 24: encodeRecordingBatch_versionedCodec_roundTripsLosslessly
+
+**任务编号**：DEV-DI-024
+**优先级/范围**：P0 / 当前 SDK
+
+- Goal: 定义版本化无损录制块协议，并实现 `identity`、`gzip` 编解码及稳定的压缩元数据。
+- Acceptance:
+  - envelope 明确 `codec`、`codecVersion`、`uncompressedBytes`、`compressedBytes`、`contentHash` 和 payload；压缩 payload 不使用 Base64。
+  - `decode(encode(batch))` 与规范化批次字节完全一致；`contentHash` 基于未压缩规范化内容，压缩实现变化不改变业务哈希。
+  - gzip 不可用、输入低于阈值或压缩后没有收益时可显式使用 `identity`，不得静默丢弃或修改事件。
+  - 解压设置最大输出边界，损坏、截断、未知 codec/version 均返回稳定错误。
+- Verify: `yarn workspace @datainsights/browser-sdk vitest run test/compression-codec.test.ts test/batcher-integrity.test.ts`
+- Dependencies: T10、T17。
+- Files:
+  - Create: `src/pipeline/compression-codec.ts`
+  - Modify: `src/public/types.ts`
+  - Modify: `src/index.ts`
+  - Modify: `package.json`
+  - Test: `test/compression-codec.test.ts`
+- [x] RED：新增 codec 测试并确认因实现缺失而失败。
+- [x] VERIFY RED：定向测试以缺少 `compression-codec` 模块失败。
+- [x] GREEN：实现 identity/gzip envelope、无损解码、大小和哈希校验。
+- [x] VERIFY GREEN：codec/批次定向测试、SDK 全量 171 tests、类型检查和串行构建通过。
+- [x] REFACTOR：补充公共类型导出、gzip trailer 限界检查和非法 payload 稳定错误。
+- [ ] COMMIT
+
+### Task 25: compressRecording_workerFirst_preservesHostPerformance
+
+**任务编号**：DEV-DI-025
+**优先级/范围**：P0 / 当前 SDK
+
+- Goal: 在现有序列化 Worker 中完成批次压缩，提供浏览器原生能力、`fflate` 和同步受控降级路径。
+- Acceptance:
+  - 优先在 Worker 中使用 `CompressionStream('gzip')`；不支持时使用直接依赖的 `fflate`，最终 `identity` 降级可诊断。
+  - Worker 输出可转移 `ArrayBuffer`，不在主线程重复复制完整录制文本；destroy/异常时所有 pending 请求确定完成或失败。
+  - 小于可配置阈值的批次不压缩；压缩 CPU、耗时、原始/压缩字节只进入本地脱敏诊断，不产生任何遥测。
+  - 与当前同步序列化结果逐字节一致，宿主长任务和事件处理预算不因压缩超标。
+- Verify: `yarn workspace @datainsights/browser-sdk vitest run test/compression-worker.test.ts test/batcher-integrity.test.ts test/benchmark/sdk-overhead.test.ts`
+- Dependencies: T24。
+- Files:
+  - Modify: `src/pipeline/serialization.worker.ts`
+  - Modify: `src/pipeline/serializer.ts`
+  - Modify: `src/runtime/client.ts`
+  - Test: `test/compression-worker.test.ts`
+  - Test: `test/benchmark/sdk-overhead.test.ts`
+- [ ] RED
+- [ ] VERIFY RED
+- [ ] GREEN
+- [ ] VERIFY GREEN
+- [ ] REFACTOR
+- [ ] COMMIT
+
+### Task 26: persistCompressedJournalOutbox_migratesWithoutDataLoss
+
+**任务编号**：DEV-DI-026
+**优先级/范围**：P0 / 当前 SDK
+
+- Goal: 让 Journal/Outbox 持久化压缩二进制录制块，并以实际存储字节执行容量控制和向后兼容迁移。
+- Acceptance:
+  - 新写入 Journal/Outbox 使用 `Blob` 或可结构化克隆的二进制 payload，不保存同批原始 JSON 副本。
+  - Journal → Outbox 仍保持同一事务内“至少保留一份”；崩溃恢复、FIFO、租约和有效回执删除语义不变。
+  - 数据库版本迁移可读取既有未压缩记录并惰性转码；迁移中断不得删除旧记录或生成重复 sequence。
+  - 100 MiB 水位按真实 `compressedBytes + metadataBytes` 计算，同时保留原始字节诊断；满容量时停止新增而不覆盖旧数据。
+- Verify: `yarn workspace @datainsights/browser-sdk vitest run test/indexeddb-compression.test.ts test/indexeddb-journal.test.ts test/indexeddb-outbox.test.ts`
+- Dependencies: T25、T08、T09。
+- Files:
+  - Modify: `src/persistence/database.ts`
+  - Modify: `src/persistence/indexeddb-journal.ts`
+  - Modify: `src/persistence/indexeddb-outbox.ts`
+  - Modify: `src/runtime/client.ts`
+  - Test: `test/indexeddb-compression.test.ts`
+- [ ] RED
+- [ ] VERIFY RED
+- [ ] GREEN
+- [ ] VERIFY GREEN
+- [ ] REFACTOR
+- [ ] COMMIT
+
+### Task 27: uploadCompressedBatch_negotiatedEncoding_keepsExactReceipts
+
+**任务编号**：DEV-DI-027
+**优先级/范围**：P0 / 当前 SDK
+
+- Goal: 通过受信任配置协商压缩能力，上送压缩二进制批次并保持幂等、回执、重试和对账语义。
+- Acceptance:
+  - Config 明确服务端接受的 codec/version；未声明支持时发送 `identity`，禁止盲目 gzip 导致生产不兼容。
+  - gzip 请求使用二进制 body、`Content-Type: application/json` 和 `Content-Encoding: gzip`；不得把 payload 转为 Base64 JSON。
+  - 同一 Outbox 批次重试复用完全相同的压缩字节、batchId、sequence 和 contentHash，不在每次重试重新压缩。
+  - 组批同时约束原始大小和压缩后目标大小；pagehide/keepalive 路径目标不超过 60 KiB，超限时在生成稳定批次前安全切分。
+  - receipt、reconcile、主备 Collector、AbortSignal 和三次失败保留 Outbox 的行为不变。
+- Verify: `yarn workspace @datainsights/browser-sdk vitest run test/compressed-http-transport.test.ts test/http-transport.test.ts test/outbox-dispatcher.test.ts test/reconciliation.test.ts`
+- Dependencies: T26、T18、T19。
+- Files:
+  - Modify: `src/config/remote-config.ts`
+  - Modify: `src/transport/http.ts`
+  - Modify: `src/transport/types.ts`
+  - Modify: `src/pipeline/batcher.ts`
+  - Test: `test/compressed-http-transport.test.ts`
+- [ ] RED
+- [ ] VERIFY RED
+- [ ] GREEN
+- [ ] VERIFY GREEN
+- [ ] REFACTOR
+- [ ] COMMIT
+
+### Task 28: replayCompressedRecording_localE2E_provesStorageReduction
+
+**任务编号**：DEV-DI-028
+**优先级/范围**：P0 / 当前 SDK 与本地 Mock
+
+- Goal: 在本地保险演示中端到端接收、保存、解压和回放压缩录制，并形成真实体积与兼容证据。
+- Acceptance:
+  - 本地 Collector 按 codec/version 解压，验证解压上限、contentHash 和精确回执；损坏块不入库且 Outbox 保留。
+  - Mock 存储只保存压缩 payload 和最小索引，不保留同一批原始事件副本；调试查看通过显式解压接口完成。
+  - 同一真实录制的压缩前后事件、顺序、时间戳、逐字输入、密码保护和最终回放状态一致。
+  - 报告每批与整段的 raw/stored bytes、压缩率、编码耗时；目标样本 `storedBytes / rawBytes <= 0.35`，未达到时给出原因而不删除事件。
+  - Chromium 自动化通过；CompressionStream、fflate、identity 三条路径均有覆盖，真机状态不虚报。
+- Verify: `yarn workspace @datainsights/browser-sdk vitest run test/compression-e2e.test.ts test/insurance-product.e2e.test.ts test/replay-segment.integration.test.ts`
+- Dependencies: T27、T22。
+- Files:
+  - Modify: `scripts/insurance-demo.mjs`
+  - Modify: `examples/insurance-product/replay.html`
+  - Create: `test/compression-e2e.test.ts`
+  - Modify: `test/insurance-product.e2e.test.ts`
+  - Create: `COMPRESSION.md`
+- [ ] RED
+- [ ] VERIFY RED
+- [ ] GREEN
+- [ ] VERIFY GREEN
+- [ ] REFACTOR
+- [ ] COMMIT
+
+### Task 29: acceptCompressedIngress_boundedDecode_validatesBeforePersist
+
+**任务编号**：FUTURE-DI-029
+**优先级/范围**：P1 / 后续生产接收服务 Change
+
+- Goal: 生产接收服务协商 codec，限界解压并在持久化前完成鉴权、完整性和幂等校验。
+- Acceptance: 支持 identity/gzip 版本协商；限制压缩与解压大小、比例和耗时；拒绝压缩炸弹、损坏流和 hash 不一致；同一 batch 幂等回执不变。
+- Verify: 服务端契约、模糊、压缩炸弹、重复批次和旧 SDK 兼容测试。
+- Dependencies: T28；实施前新建后端 OpenSpec Change。
+- Files likely touched: 生产 Collector API、codec registry、幂等仓储、契约测试；具体路径由后续仓库设计确定。
+- [ ] TODO：迁移至后续 Change 并完成 Proposal/Design/Tasks 审批。
+
+### Task 30: compactRecordingSegments_zstd_preservesReplayCheckpoints
+
+**任务编号**：FUTURE-DI-030
+**优先级/范围**：P1 / 后续存储管道 Change
+
+- Goal: 将可靠接收的小 Batch 合并为可随机访问的 Replay Segment，并以 zstd/gzip 无损存入对象存储。
+- Acceptance: DB 只保存 segment 索引和大小/hash/codec 元数据；对象存储不保留重复原始 JSON；合并保持 sequence、时间戳、快照边界和 gap；失败可从已确认 batch 重建。
+- Verify: 合并幂等、乱序/迟到输入、对象写入失败、重建和压缩率基准测试。
+- Dependencies: T29；实施前新建存储管道 OpenSpec Change。
+- Files likely touched: segment compactor、对象存储 adapter、segment metadata migration、集成测试。
+- [ ] TODO：迁移至后续 Change 并完成 Proposal/Design/Tasks 审批。
+
+### Task 31: deliverCompressedReplay_manifestRange_decodesCompatibly
+
+**任务编号**：FUTURE-DI-031
+**优先级/范围**：P1 / 后续 Replay 服务 Change
+
+- Goal: 通过 Manifest 和分段读取交付压缩 Replay，按需解码且兼容历史 identity/gzip 与新 zstd Segment。
+- Acceptance: Manifest 声明 codec/version/raw/stored bytes/hash/sequence；播放器按 checkpoint 拉取而非整段全量加载；损坏或 gap 显式告警；预签名 URL 和租户鉴权不因压缩旁路。
+- Verify: 跨 codec、跨版本、Range/分段、损坏数据、长会话内存和播放一致性测试。
+- Dependencies: T30；实施前新建 Replay OpenSpec Change。
+- Files likely touched: Replay Manifest API、segment reader、播放器 decoder、端到端测试。
+- [ ] TODO：迁移至后续 Change 并完成 Proposal/Design/Tasks 审批。
+
+### Task 32: governCompressedData_retentionMigration_observesRealCost
+
+**任务编号**：FUTURE-DI-032
+**优先级/范围**：P1 / 后续数据生命周期 Change
+
+- Goal: 建立压缩数据的留存删除、codec 迁移、成本与异常压缩率监控，确保 DB/对象存储容量长期受控。
+- Acceptance: 删除覆盖索引、对象、缓存和备份策略；codec 迁移可断点续作且不保留永久双份；按租户统计 raw/stored bytes 和压缩率；异常膨胀、解码失败、孤儿对象可告警和修复。
+- Verify: TTL/行权删除、迁移中断恢复、对象孤儿扫描、容量账单和审计测试。
+- Dependencies: T30、T31；实施前新建数据生命周期 OpenSpec Change。
+- Files likely touched: retention worker、migration job、storage inventory、metrics/audit、灾备测试。
+- [ ] TODO：迁移至后续 Change 并完成 Proposal/Design/Tasks 审批。
+
 ## Checkpoint 执行要求
 
 每个 Checkpoint 必须记录以下证据后才允许继续：
@@ -641,6 +951,8 @@ T01..T16 → T17
 - [x] 已创建 `test-cases.md`，覆盖单元、浏览器、异常、隐私、可靠性、性能和上游回归证据。
 - [x] 每个 Task 均有独立提交；T17 在 `review-report.md` 记录实现摘要、风险点和人工 review 关注点。
 - [x] 未生成服务端分析、正式存储或管理后台测试用例。
+- [x] T24-T28 在进入 Apply 前补充压缩协议 Design 并取得人工批准。（用户于 2026-10-27 明确要求启动前端压缩改造）
+- [ ] T29-T32 分别迁移到对应生产服务端 OpenSpec Change，不在 DI-1001 中直接实现。
 
 ## 任务完成定义
 
@@ -648,9 +960,13 @@ T01..T16 → T17
 - [x] 没有“实现整个 SDK”式 XL 任务。
 - [x] 每个任务原则上不超过 5 个主要文件。
 - [x] 依赖顺序和每 2-3 个任务的 Checkpoint 已明确。
-- [x] 所有实现任务均按有效 RED 后进入 GREEN。
+- [x] T01-T23 均按有效 RED 后进入 GREEN。
+- [ ] T25-T28 尚未实施，必须按有效 RED 后进入 GREEN；T24 已实现待提交。
+- [x] T33 已取得用户优先实施确认（2026-10-27）。
+- [x] T34 已取得用户优先实施确认（2026-10-27）。
 - [x] SDK 与服务端/分析/正式 Replay 平台边界已明确。
-- [x] 进入 Apply 前已取得用户对本任务清单的明确批准。（2026-10-26）
+- [x] T01-T23 进入 Apply 前已取得用户明确批准。（2026-10-26）
+- [x] T24-T28 的压缩设计与任务拆分已获用户批准进入 Apply。（2026-10-27）
 
 ## 参考规范
 

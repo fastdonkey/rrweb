@@ -33,7 +33,7 @@ export interface RecordingBatchContext {
     readonly action: 'start-insurance';
     readonly grantedAt: string;
   };
-  readonly journeyId?: string;
+  readonly traceId: string;
   readonly sessionId: string;
   readonly recordingId: string;
   readonly segmentId: string;

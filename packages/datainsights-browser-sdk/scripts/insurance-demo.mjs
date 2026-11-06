@@ -142,6 +142,22 @@ async function readAssets({ rrwebBundle, playerScript, playerStyle }) {
       ['/gp/99440765', path.resolve(exampleRoot, 'index.html')],
       ['/insurance/styles.css', path.resolve(exampleRoot, 'styles.css')],
       ['/insurance/app.js', path.resolve(exampleRoot, 'app.js')],
+      [
+        '/insurance/interaction-lab.css',
+        path.resolve(exampleRoot, 'interaction-lab.css'),
+      ],
+      [
+        '/insurance/interaction-lab.js',
+        path.resolve(exampleRoot, 'interaction-lab.js'),
+      ],
+      [
+        '/insurance/iframe-lab.html',
+        path.resolve(exampleRoot, 'iframe-lab.html'),
+      ],
+      [
+        '/insurance/pdf-reader.html',
+        path.resolve(exampleRoot, 'pdf-reader.html'),
+      ],
       ['/insurance/replay.html', path.resolve(exampleRoot, 'replay.html')],
       [
         '/sdk/datainsights-browser-sdk.js',

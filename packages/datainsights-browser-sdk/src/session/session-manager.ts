@@ -3,7 +3,9 @@ import { generateUuid } from '../shared/uuid';
 import { TabClaim } from './tab-claim';
 
 const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000;
-const END_SESSION_REASONS = new Set<StopReason>([
+const UUID_V4_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+export const END_SESSION_REASONS = new Set<StopReason>([
   'completed',
   'cancelled',
   'logout',
@@ -13,8 +15,8 @@ const END_SESSION_REASONS = new Set<StopReason>([
 ]);
 
 interface PersistedSession {
+  traceId?: string;
   sessionId: string;
-  journeyId?: string;
   lastActivityAt: number;
 }
 
@@ -24,8 +26,9 @@ function isPersistedSession(value: unknown): value is PersistedSession {
   return (
     typeof candidate.sessionId === 'string' &&
     typeof candidate.lastActivityAt === 'number' &&
-    (candidate.journeyId === undefined ||
-      typeof candidate.journeyId === 'string')
+    (candidate.traceId === undefined ||
+      (typeof candidate.traceId === 'string' &&
+        UUID_V4_PATTERN.test(candidate.traceId)))
   );
 }
 
@@ -33,6 +36,7 @@ export class SessionManager {
   private readonly storageKey: string;
   private readonly claim: TabClaim;
   private session: PersistedSession | undefined;
+  isNewTrace = false;
 
   constructor(
     appKey: string,
@@ -48,22 +52,28 @@ export class SessionManager {
 
   async startRecording(
     identityType: RecordingContext['identityType'],
-    journeyId?: string,
   ): Promise<RecordingContext> {
     const timestamp = this.now();
+    this.isNewTrace = false;
     if (!this.session || this.isExpired(this.session, timestamp)) {
       const restored = await this.restore(timestamp);
+      this.isNewTrace = !restored;
       this.session = restored ?? {
+        traceId: generateUuid(),
         sessionId: generateUuid(),
         lastActivityAt: timestamp,
       };
     }
-    if (journeyId !== undefined) this.session.journeyId = journeyId;
+    if (!this.session.traceId) {
+      this.session.traceId = generateUuid();
+      this.isNewTrace = true;
+    }
     this.session.lastActivityAt = timestamp;
     this.claim.hold(this.session.sessionId);
     this.persist();
     return {
       identityType,
+      traceId: this.session.traceId,
       sessionId: this.session.sessionId,
       recordingId: generateUuid(),
       segmentId: generateUuid(),

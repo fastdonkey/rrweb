@@ -7,6 +7,8 @@ export type {
   DebugInfo,
   DeliveryStateSnapshot,
   PersistenceCapabilitySnapshot,
+  EncodedRecordingBatch,
+  RecordingPayloadCodec,
   RemoteConfigResolverOptions,
   ResolvedApplicationConfig,
   ConsentEvidence,

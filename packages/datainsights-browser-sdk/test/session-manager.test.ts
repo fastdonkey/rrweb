@@ -6,6 +6,7 @@ type Result<T = void> =
   | { ok: false; error: { code: string; message: string } };
 
 interface RecordingContext {
+  traceId: string;
   sessionId: string;
   recordingId: string;
   segmentId: string;
@@ -126,18 +127,65 @@ describe('Session lifecycle', () => {
     vi.resetModules();
   });
 
-  it('preserves Session but rotates Recording on the same tab', async () => {
+  it('creates an SDK-owned Trace and preserves it for a continuous recording', async () => {
     const client = await freshClient();
     authorize(client);
 
-    const first = await client.start({ journeyId: 'journey-1' });
+    const first = await client.start();
     await client.stop('manual');
-    const second = await client.start({ journeyId: 'journey-1' });
+    const second = await client.start();
 
     expect(first.ok && second.ok).toBe(true);
     if (!first.ok || !second.ok) return;
+    expect(first.value.traceId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    expect(second.value.traceId).toBe(first.value.traceId);
     expect(second.value.sessionId).toBe(first.value.sessionId);
     expect(second.value.recordingId).not.toBe(first.value.recordingId);
+  });
+
+  it('does not allow host input to override the SDK-owned Trace', async () => {
+    const client = await freshClient();
+    authorize(client);
+
+    const result = await client.start({ traceId: 'host-controlled-trace' });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.traceId).not.toBe('host-controlled-trace');
+    }
+  });
+
+  it('replaces a tampered persisted Trace instead of restoring it', async () => {
+    vi.stubGlobal('BroadcastChannel', FakeBroadcastChannel);
+    const storage = sessionStorage as unknown as ReturnType<
+      typeof createStorage
+    >;
+    storage.values.set(
+      'di:v1:insurance-h5:session',
+      JSON.stringify({
+        traceId: 'host-controlled-trace',
+        sessionId: '11111111-1111-4111-8111-111111111111',
+        lastActivityAt: Date.now(),
+      }),
+    );
+    const client = await freshClient();
+    authorize(client);
+    const timerCount = vi.getTimerCount();
+
+    const pending = client.start();
+    await waitForAdditionalTimer(timerCount);
+    await vi.advanceTimersByTimeAsync(25);
+    const result = await pending;
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.traceId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+      );
+      expect(result.value.traceId).not.toBe('host-controlled-trace');
+    }
   });
 
   it('restores a refreshed tab after the previous page releases its claim', async () => {
@@ -158,8 +206,29 @@ describe('Session lifecycle', () => {
 
     expect(first.ok && refreshed.ok).toBe(true);
     if (first.ok && refreshed.ok) {
+      expect(refreshed.value.traceId).toBe(first.value.traceId);
       expect(refreshed.value.sessionId).toBe(first.value.sessionId);
       expect(refreshed.value.recordingId).not.toBe(first.value.recordingId);
+    }
+  });
+
+  it.each([
+    'completed',
+    'cancelled',
+    'logout',
+    'auth-expired',
+    'consent-revoked',
+    'idle-timeout',
+  ])('creates a new Trace after %s closes the previous one', async (reason) => {
+    const client = await freshClient();
+    authorize(client);
+    const first = await client.start();
+    await client.stop(reason);
+    const second = await client.start();
+
+    expect(first.ok && second.ok).toBe(true);
+    if (first.ok && second.ok) {
+      expect(second.value.traceId).not.toBe(first.value.traceId);
     }
   });
 
@@ -179,6 +248,7 @@ describe('Session lifecycle', () => {
 
     expect(first.ok && second.ok).toBe(true);
     if (first.ok && second.ok) {
+      expect(second.value.traceId).not.toBe(first.value.traceId);
       expect(second.value.sessionId).not.toBe(first.value.sessionId);
     }
   });

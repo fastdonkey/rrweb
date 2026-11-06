@@ -68,7 +68,11 @@ Worker 加载失败时 SDK 使用等价的同步序列化路径。不要依赖 `
 
 ## 本地保险产品录制与回放
 
-本仓库提供去生产化的移动端保险页面、Mock Config/Collector 和真实 rrweb 回放。它只绑定 `127.0.0.1`，不包含众安生产脚本、接口、Cookie、Fingerprint、监控或外链。
+本仓库提供去生产化的移动端保险页面、Mock Config/Collector 和真实 rrweb 回放。页面包含投保须知、保险条款、健康告知、免责条款和个人信息处理授权书五项逐项阅读流程，只有滚动到底并完成全部确认后才能提交，用于验证点击、长内容滚动、状态门禁和确认顺序的录制效果。
+
+页面还提供独立的“复杂交互录制实验室”：页签、手风琴、键盘搜索联想、横向滑动、Toast、虚拟长列表、文件元数据和刷新恢复属于完整 DOM 验证；Canvas、WebGL、同源/跨源 iframe、PDF 阅读器模拟和权限型媒体用于展示 rrweb 默认能力边界。Canvas 2D/WebGL 新增 5fps 位图采样扩展，静态帧去重，支持配套 DataInsights 回放及 MP4 渲染，不等同于原生 GPU/60fps 重演；上传不读取文件正文；媒体组件不申请真实摄像头或麦克风权限。
+
+Demo 只绑定本机回环地址，不包含众安生产脚本、接口、Cookie、Fingerprint、监控或外链。
 
 ```bash
 yarn workspace @datainsights/browser-sdk demo:insurance
@@ -86,7 +90,7 @@ yarn workspace @datainsights/browser-sdk demo:insurance
 PUPPETEER_HEADLESS=true yarn workspace @datainsights/browser-sdk test:insurance-e2e
 ```
 
-测试拒绝所有非本地 HTTP(S) 请求，并验证点击前无录制、普通保险字段被记录、密码值缺失、精确回执清空 Outbox，以及生成的真实事件在 `sandbox="allow-same-origin"` 且不允许脚本的 iframe 中回放。
+测试拒绝所有非本地 HTTP(S) 请求，并验证点击前无录制、五份须知逐项阅读确认、复杂交互状态、上传正文缺失、跨源 iframe 隔离、媒体权限零调用、普通保险字段被记录、密码值缺失、精确回执清空 Outbox，以及生成的真实事件在 `sandbox="allow-same-origin"` 且不允许脚本的 iframe 中回放。
 
 ## 录制与回放对象边界
 
@@ -98,3 +102,34 @@ PUPPETEER_HEADLESS=true yarn workspace @datainsights/browser-sdk test:insurance-
 | Replay Chunk / Manifest | 后续服务端与播放器 | 面向对象存储、范围读取、播放器索引和生命周期管理；不在 DI-1001 实现 |
 
 `examples/insurance-product` 和 `examples/local-replay` 都是本地验证工具，不是生产播放器。所有 Replay 数据均视为不可信输入；iframe 必须保持精确的 `sandbox="allow-same-origin"`，不得增加 `allow-scripts`。
+
+
+### 上传令牌自动刷新（T25）
+
+标准 bootstrap / HTTP transport 复用原 AppKey 的 `/sdk/config`，在30分钟令牌到期前5分钟刷新；并发调用和迟到的401共用当前刷新结果。401最多刷新一次并重传相同批次正文，不修改batchId、hash、identity或Outbox命名空间。二次401、网络或配置失败保留未确认数据，刷新按1s起指数退避、上限60s，单次刷新超时10s；不会请求delivery-state或capabilities完成刷新。
+
+上传或配置接口403会暂停该transport的上送并保留Outbox，不自动换Key。管理员恢复授权后应明确销毁并重新初始化原AppKey实例；旧Key被撤销或宽限期届满时不允许新Key自动认领其队列。停止录制可继续处理同实例待传数据，destroy会释放刷新定时器并取消刷新请求。配置源在初始化时固定，私有化/本地demo刷新复用原可信配置源。
+
+本次仅令牌生命周期，关闭声明持久化、按需补传查询预算及HTTP gzip分别由T26/T27实现。后端任务及联调证据见Data-Insights仓库 `openspec/planning/trace-backend/tasks.md` 的T25。
+
+### 持久化关闭声明（T26）
+
+SDK 在停止录制时先持久化尾批及其最终序号/哈希，再把关闭声明与尾批放入同一个 IndexedDB 事务。关闭队列复用现有 metadata store，不需要升级数据库。刷新页面或普通 `stop()` 只关闭当前 Recording；`stop('completed')` 等终结原因同时声明 Trace 的已知 Recording 成员。BFCache 保留页不提前关闭，异常退出没有成功提交声明时维持“结束未知”。
+
+关闭队列在启动、online 和每30秒尝试发送，保留原closeId及正文；只有完全匹配的 `{accepted:true,closeId}` 才清队列。401复用令牌刷新，403/永久格式拒绝暂停保留，网络错误/旧服务404不删除。客户自定义transport可以实现可选 `sendClose`；未实现时声明仅本地保留。后台仍须验证数据边界，收到关闭声明不等于录制已完整或可以完整回放。
+
+成员账本缺失的历史Trace不自动生成关闭声明。新封批使用UUID；历史本地demo中拼接形式的batchId不自动迁移、改hash或删除，需要受控恢复。关闭头与成员账本当前保守保留，未做长期自动GC。浏览器强杀无法保证尚未提交的内存数据；本地事务失败时停止操作返回失败，应重试，不能伪造成功关闭。
+
+验证：在本包目录运行 `vitest run test/durable-close.test.ts test/durable-close.e2e.test.ts`。浏览器用例使用本地保险页面和受控关闭接口，导出 `target/t26-browser-contract.json`；Data-Insights 的 BrowserCloseCompatibilityTest 校验其哈希和最终边界，Kafka/OSS/MySQL关闭消费通过后端独立集成测试验证。
+
+### 按需补传确认与 HTTP gzip（T27）
+
+正常上传收到匹配的持久化回执就清除对应Outbox，不追加delivery-state/reconcile查询。仅页面重开或online恢复且存在至少两个待确认批次时启用可选v2查询：按Recording分组、每请求最多100条元数据、每轮最多3次（含重试），响应后至少间隔1秒，30秒内合并重复触发。候选集合冻结；新批次继续上传。UNKNOWN/失败/预算外项回原重试队列，不轮询等待STORED。
+
+STORED只有完整匹配batchId、recordingId、序号范围和hash才清队列。CONFLICT/DELETED以及永久格式拒绝保留原数据并持久标记停止重传，通知诊断；后续正常批次不因旧坏数据被阻塞。该标记没有自动删除或人工解封界面。应用授权403仍暂停实例并保留数据；可选能力/查询接口403本身不会停掉仍合法的普通上传。
+
+能力协商按AppKey（含环境）和configVersion单飞缓存，失败也缓存；同版本token刷新不重复探测。404/失败兼容普通JSON，closeV2未声明时只保留关闭队列。状态查询和能力请求分别计数，100批正常上传可有一次能力请求，但状态查询应为0。客户无需增加接入参数。
+
+服务声明gzipHttp后，对≥1KiB且压缩更小的JSON使用Content-Encoding:gzip；先用CompressionStream，不支持时回退已内置fflate。压缩不修改batchId/hash/原JSON字节，首次上传可以保持JSON。415回退相同原文一次，并在当前配置版本停用gzip；400/422不绕过内容校验。Retry-After同时支持秒数和HTTP日期，不通过切换collector绕过429/503限流。生产移动设备上的同步压缩回退CPU开销仍需部署压测。
+
+验证入口：`vitest run test/backend-contract.integration.test.ts`；后端真实gzip、刷新和Kafka→MySQL/OSS幂等命令见Data-Insights `openspec/planning/trace-backend/tasks.md` T27。当前为工作区补丁和构建产物，发布前须记录外部SDK提交及发行版本。

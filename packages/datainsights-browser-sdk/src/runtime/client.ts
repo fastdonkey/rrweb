@@ -1,3 +1,5 @@
+import { CloseStore, type CloseIntent } from '../delivery/close-store';
+import { CloseDispatcher } from '../delivery/close-dispatcher';
 import { validateConfig } from '../config/config';
 import { BUILD_INFO } from '../build-info';
 import { ConsentManager } from '../consent/consent-manager';
@@ -44,7 +46,10 @@ import {
   type RecorderHandle,
 } from '../recorder/rrweb-adapter';
 import { LifecycleStateMachine } from './state-machine';
-import { SessionManager } from '../session/session-manager';
+import {
+  SessionManager,
+  END_SESSION_REASONS,
+} from '../session/session-manager';
 import { ActivityTracker } from './activity-tracker';
 import { ResourceRegistry } from './resource-registry';
 import { installBootstrap } from './bootstrap';
@@ -106,10 +111,12 @@ export function createClient(): DataInsightsClient {
   let outbox: IndexedDbOutbox | undefined;
   let outboxDispatcher: OutboxDispatcher | undefined;
   let activeIdentity: ResolvedIdentity | undefined;
-  let activeJourneyId: string | undefined;
   const previousBatchHashes = new Map<string, string>();
   let pipelineTimer: ReturnType<typeof setInterval> | undefined;
   let drainPromise: Promise<boolean> | undefined;
+  let closeStore: CloseStore | undefined;
+  let closeDispatcher: CloseDispatcher | undefined;
+  let stopPromise: Promise<SDKResult<void>> | undefined;
   let serializer: WorkerFirstSerializer | undefined;
   let journalDisposers: Array<() => void> = [];
   let bootstrapOptions: Readonly<DataInsightsBootstrapOptions> | undefined;
@@ -135,15 +142,21 @@ export function createClient(): DataInsightsClient {
         action: consent.action,
         grantedAt: consent.grantedAt,
       },
-      journeyId: activeJourneyId,
+      traceId: recordingContext.traceId,
       sessionId: recordingContext.sessionId,
       recordingId: recordingContext.recordingId,
       segmentId: recordingContext.segmentId,
     };
   }
 
-  function drainJournal(reason: BatchReason): Promise<boolean> {
-    if (drainPromise) return drainPromise;
+  function drainJournal(
+    reason: BatchReason,
+    close?: CloseIntent,
+  ): Promise<boolean> {
+    if (drainPromise)
+      return close
+        ? drainPromise.then(() => drainJournal(reason, close))
+        : drainPromise;
     drainPromise = (async () => {
       if (
         !journal ||
@@ -156,7 +169,8 @@ export function createClient(): DataInsightsClient {
         return false;
       }
       const chunks = await journal.recoverAll();
-      if (chunks.length === 0) return true;
+      if (chunks.length === 0)
+        return close ? closeStore?.finish(close) ?? false : true;
       const pendingOutbox = await outbox.list();
       const groups = new Map<string, typeof chunks>();
       for (const chunk of chunks) {
@@ -176,21 +190,20 @@ export function createClient(): DataInsightsClient {
         const previousOutboxBatch = pendingOutbox
           .filter((batch) => batch.recordingId === recordingId)
           .sort((left, right) => right.sequenceEnd - left.sequenceEnd)[0];
-        let batchIndex = 0;
+        const durableBoundary = await closeStore?.boundary(recordingId);
         const batcher = new RecordingBatcher(context, {
           ...options.batching,
           initialSequence: recordingChunks[0].sequenceStart,
           previousBatchHash:
             recordingChunks[0].previousBatchHash ??
             previousBatchHashes.get(recordingId) ??
+            (durableBoundary?.end === recordingChunks[0].sequenceStart - 1
+              ? durableBoundary.hash
+              : undefined) ??
             (typeof previousOutboxBatch?.contentHash === 'string'
               ? previousOutboxBatch.contentHash
               : undefined),
           now: () => recordingChunks[0].createdAt,
-          createBatchId: () =>
-            `${recordingId}:${
-              recordingChunks[0].sequenceStart
-            }:${++batchIndex}`,
           serialize: (value) =>
             serializer?.serialize(value) ??
             Promise.reject(new Error('Serializer unavailable.')),
@@ -218,24 +231,30 @@ export function createClient(): DataInsightsClient {
           bytes: serialized.bytes.byteLength,
         })),
         chunks.map(({ key }) => key),
+        close,
       );
       if (!stored) return false;
       for (const [recordingId, hash] of nextBatchHashes) {
         previousBatchHashes.set(recordingId, hash);
       }
-      const firstDispatch = await outboxDispatcher.dispatch('manual');
-      let pending = await outbox.list();
-      // A startup dispatch can still be reading an empty Outbox while the
-      // first recording batch is committed. Run once more after that flight
-      // completes so stop/flush cannot strand a newly durable batch.
-      if (firstDispatch.state === 'idle' && pending.length > 0) {
-        await outboxDispatcher.dispatch('manual');
-        pending = await outbox.list();
-      }
-      diagnostics.updatePending(
-        pending.length,
-        pending.reduce((total, batch) => total + batch.bytes, 0),
-      );
+      if (close) return true; // Persist closure before any network await.
+      const dispatcher = outboxDispatcher,
+        durableOutbox = outbox;
+      void (async () => {
+        const firstDispatch = await dispatcher.dispatch('manual');
+        let pending = await durableOutbox.list();
+        // A startup dispatch can still be reading an empty Outbox while the
+        // first recording batch is committed. Run once more after that flight
+        // completes so stop/flush cannot strand a newly durable batch.
+        if (firstDispatch.state === 'idle' && pending.length > 0) {
+          await dispatcher.dispatch('manual');
+          pending = await durableOutbox.list();
+        }
+        diagnostics.updatePending(
+          pending.length,
+          pending.reduce((total, batch) => total + batch.bytes, 0),
+        );
+      })().catch(() => undefined);
       return true;
     })().finally(() => {
       drainPromise = undefined;
@@ -262,7 +281,90 @@ export function createClient(): DataInsightsClient {
     sessionManager?.endRecording('recorder-error');
     recordingContext = undefined;
     activeIdentity = undefined;
-    activeJourneyId = undefined;
+  }
+
+  async function stopRecording(_reason: StopReason): Promise<SDKResult<void>> {
+    if (state.state === 'destroyed') {
+      return failure('DESTROYED', 'The SDK instance has been destroyed.');
+    }
+    if (state.state === 'starting' && startPromise) await startPromise;
+    if (
+      state.state !== 'recording' &&
+      state.state !== 'degraded' &&
+      state.state !== 'stopping'
+    ) {
+      return { ok: true, value: undefined };
+    }
+    if (state.state === 'recording') state.transition('stopping');
+    activityTracker?.stop();
+    activityTracker = undefined;
+    if (pipelineTimer !== undefined) clearInterval(pipelineTimer);
+    pipelineTimer = undefined;
+    if (segmentTimer !== undefined) clearInterval(segmentTimer);
+    segmentTimer = undefined;
+    recorder?.stop();
+    recorder = undefined;
+    if (!(await journal?.flush()))
+      return failure(
+        'PERSISTENCE_WRITE_FAILED',
+        'The recording tail is not durable; retry stop.',
+      );
+    const intent: CloseIntent | undefined = recordingContext
+      ? {
+          recordingId: recordingContext.recordingId,
+          reason: _reason,
+          endTrace: END_SESSION_REASONS.has(_reason),
+          endedAt: new Date().toISOString(),
+        }
+      : undefined;
+    let drained = await drainJournal('stop', intent);
+    if (!drained)
+      return failure(
+        'PERSISTENCE_WRITE_FAILED',
+        'The recording closure was not committed; retry stop.',
+      );
+    sessionManager?.endRecording(_reason);
+    void closeDispatcher?.dispatch();
+    if (outbox && outboxDispatcher) {
+      let pendingAtStop = await outbox.list();
+      if (pendingAtStop.length > 0) {
+        const finalDispatch = await outboxDispatcher.dispatch('manual');
+        pendingAtStop = await outbox.list();
+        drained =
+          drained &&
+          finalDispatch.state === 'idle' &&
+          pendingAtStop.length === 0;
+        diagnostics.updatePending(
+          pendingAtStop.length,
+          pendingAtStop.reduce((total, batch) => total + batch.bytes, 0),
+        );
+      }
+    }
+    outboxDispatcher?.destroy();
+    outboxDispatcher = undefined;
+    for (const dispose of journalDisposers) dispose();
+    journalDisposers = [];
+    journal = undefined;
+    outbox = undefined;
+    serializer?.destroy();
+    serializer = undefined;
+    await resources.disposeAll();
+    recordingContext = undefined;
+    activeIdentity = undefined;
+    if (state.state === 'recording') {
+      state.transition('stopping');
+      state.transition('authorized');
+    } else {
+      state.transition('authorized');
+    }
+    if (!drained) {
+      diagnostics.recordError('PERSISTENCE_WRITE_FAILED');
+      return failure(
+        'PERSISTENCE_WRITE_FAILED',
+        'Recorded events could not be moved into the durable Outbox.',
+      );
+    }
+    return { ok: true, value: undefined };
   }
 
   const client: DataInsightsClient = {
@@ -438,14 +540,28 @@ export function createClient(): DataInsightsClient {
             );
           }
           activeIdentity = identity.value;
-          activeJourneyId = context?.journeyId;
           recordingContext = await sessionManager?.startRecording(
             identity.value.type,
-            context?.journeyId,
           );
           if (!recordingContext) {
             state.transition('authorized');
             return failure('INVALID_STATE', 'Session could not be created.');
+          }
+          closeStore = new CloseStore(database, options?.appKey ?? '');
+          await closeStore.register(
+            recordingContext.traceId,
+            recordingContext.recordingId,
+            sessionManager?.isNewTrace ?? false,
+          );
+          if (!closeDispatcher) {
+            closeDispatcher = new CloseDispatcher(
+              closeStore,
+              options!.transport,
+              typeof globalThis.window === 'undefined'
+                ? undefined
+                : globalThis.window,
+            );
+            closeDispatcher.start();
           }
           journal = new IndexedDbJournal({
             database,
@@ -479,11 +595,14 @@ export function createClient(): DataInsightsClient {
           }
           const dispatchOutbox: DispatchOutbox = {
             list: async () =>
-              ((await outbox?.list()) ?? []).map(
-                ({ key: _key, bytes: _bytes, ...batch }) =>
-                  batch as unknown as Readonly<RecordingBatchV1>,
-              ),
+              ((await outbox?.list()) ?? [])
+                .filter((batch) => !batch.deliveryBlocked)
+                .map(
+                  ({ key: _key, bytes: _bytes, ...batch }) =>
+                    batch as unknown as Readonly<RecordingBatchV1>,
+                ),
             remove: (batchId) => outbox!.remove(batchId),
+            block: (batchId, reason) => outbox!.block(batchId, reason),
           };
           outboxDispatcher = new OutboxDispatcher({
             outbox: dispatchOutbox,
@@ -495,6 +614,7 @@ export function createClient(): DataInsightsClient {
                 ? undefined
                 : globalThis.window,
             onBlocked: (batch) => {
+              diagnostics.recordError('TRANSPORT_FAILED');
               if (recordingContext?.recordingId === batch.recordingId) {
                 void client.stop('recorder-error');
               }
@@ -512,7 +632,13 @@ export function createClient(): DataInsightsClient {
           resources.add(() => activeSerializer.destroy());
           void drainJournal('manual').catch(() => undefined);
           if (typeof globalThis.window !== 'undefined') {
-            const dispose = journal.bindLifecycle(globalThis.window);
+            const hide = (event: PageTransitionEvent) => {
+              if (!event.persisted) void client.stop('manual');
+            };
+            globalThis.window.addEventListener('pagehide', hide);
+            const dispose = () => {
+              globalThis.window.removeEventListener('pagehide', hide);
+            };
             journalDisposers.push(dispose);
             resources.add(dispose);
           }
@@ -631,66 +757,12 @@ export function createClient(): DataInsightsClient {
       return { ok: true, value: undefined };
     },
 
-    async stop(_reason: StopReason = 'manual') {
-      if (state.state === 'destroyed') {
-        return failure('DESTROYED', 'The SDK instance has been destroyed.');
-      }
-      if (state.state === 'starting' && startPromise) await startPromise;
-      if (state.state !== 'recording' && state.state !== 'degraded') {
-        return { ok: true, value: undefined };
-      }
-      activityTracker?.stop();
-      activityTracker = undefined;
-      if (pipelineTimer !== undefined) clearInterval(pipelineTimer);
-      pipelineTimer = undefined;
-      if (segmentTimer !== undefined) clearInterval(segmentTimer);
-      segmentTimer = undefined;
-      recorder?.stop();
-      recorder = undefined;
-      await journal?.flush();
-      let drained = await drainJournal('stop');
-      if (outbox && outboxDispatcher) {
-        let pendingAtStop = await outbox.list();
-        if (pendingAtStop.length > 0) {
-          const finalDispatch = await outboxDispatcher.dispatch('manual');
-          pendingAtStop = await outbox.list();
-          drained =
-            drained &&
-            finalDispatch.state === 'idle' &&
-            pendingAtStop.length === 0;
-          diagnostics.updatePending(
-            pendingAtStop.length,
-            pendingAtStop.reduce((total, batch) => total + batch.bytes, 0),
-          );
-        }
-      }
-      outboxDispatcher?.destroy();
-      outboxDispatcher = undefined;
-      for (const dispose of journalDisposers) dispose();
-      journalDisposers = [];
-      journal = undefined;
-      outbox = undefined;
-      serializer?.destroy();
-      serializer = undefined;
-      await resources.disposeAll();
-      sessionManager?.endRecording(_reason);
-      recordingContext = undefined;
-      activeIdentity = undefined;
-      activeJourneyId = undefined;
-      if (state.state === 'recording') {
-        state.transition('stopping');
-        state.transition('authorized');
-      } else {
-        state.transition('authorized');
-      }
-      if (!drained) {
-        diagnostics.recordError('PERSISTENCE_WRITE_FAILED');
-        return failure(
-          'PERSISTENCE_WRITE_FAILED',
-          'Recorded events could not be moved into the durable Outbox.',
-        );
-      }
-      return { ok: true, value: undefined };
+    stop(reason: StopReason = 'manual') {
+      if (stopPromise) return stopPromise;
+      stopPromise = stopRecording(reason).finally(() => {
+        stopPromise = undefined;
+      });
+      return stopPromise;
     },
 
     getDebugInfo() {
@@ -706,11 +778,19 @@ export function createClient(): DataInsightsClient {
       if (state.state === 'destroyed') {
         return { ok: true, value: undefined };
       }
-      if (state.state === 'recording' || state.state === 'starting') {
-        await client.stop();
+      if (
+        state.state === 'recording' ||
+        state.state === 'starting' ||
+        state.state === 'stopping'
+      ) {
+        const stopped = await client.stop();
+        if (!stopped.ok && state.state === 'stopping') return stopped;
       }
+      closeDispatcher?.destroy();
+      closeDispatcher = undefined;
       disposeBootstrap?.();
       disposeBootstrap = undefined;
+      await options?.transport?.destroy?.();
       activityTracker?.stop();
       recorder?.stop();
       outboxDispatcher?.destroy();

@@ -25,7 +25,7 @@ const context: RecordingBatchContext = {
     action: 'start-insurance',
     grantedAt: '2026-10-26T00:00:00.000Z',
   },
-  journeyId: 'journey-1',
+  traceId: 'trace-1',
   sessionId: 'session-1',
   recordingId: 'recording-1',
   segmentId: 'segment-1',
@@ -44,6 +44,7 @@ describe('RecordingBatcher integrity', () => {
 
     expect(sealed.batch).toMatchObject({
       batchId: 'batch-count',
+      traceId: 'trace-1',
       sequenceStart: 1,
       sequenceEnd: 2,
       reason: 'count',

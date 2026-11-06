@@ -1,13 +1,13 @@
 ---
 jira: DI-1001
 proposal_source: openspec/changes/di-1001/proposal.md
-proposal_version: 1.3
-design_version: 1.4
+proposal_version: 1.5
+design_version: 1.7
 created: 2026-10-25
-updated: 2026-10-26
+updated: 2026-10-27
 ---
 
-# DI-1001 DataInsights 前端 SDK 技术设计文档 v1.4
+# DI-1001 DataInsights 前端 SDK 技术设计文档 v1.5
 
 ## 1. 背景与目标
 
@@ -19,7 +19,7 @@ DI-1001 要在 rrweb Fork 内构建面向保险投保流程的 DataInsights 浏�
 
 1. 在 `packages/datainsights-browser-sdk` 建立独立产品层，首期按 L0 侵入等级实现。
 2. 定义稳定、可版本化且不泄露 rrweb 内部类型的公共 API。
-3. 建立授权、身份、投保 Journey、Session、Recording、Segment 的明确状态和数据边界。
+3. 建立授权、身份、Trace、Session、Recording、Segment 的明确状态和数据边界；业务 Journey 留给后续数据清洗。
 4. 使用单向、有界、可诊断的事件管道向可插拔 Transport 输出批次。
 5. 通过强制隐私配置、错误隔离、资源释放和沙箱回放建立安全边界。
 6. 复用当前 Yarn、Turbo、TypeScript、Vite、Vitest 和 Puppeteer 工具链。
@@ -30,7 +30,7 @@ DI-1001 要在 rrweb Fork 内构建面向保险投保流程的 DataInsights 浏�
 
 - `@datainsights/browser-sdk` 公共 API 与 Script Tag 全局入口；
 - rrweb recorder 适配、授权后启动、100% 投保录制；
-- 身份、Session、Journey、Recording、Segment 生命周期；
+- 身份、SDK 自动 Trace、Session、Recording、Segment 生命周期；
 - 隐私策略、批次、序列、IndexedDB durable outbox、Worker 序列化和 Transport 抽象；
 - AppKey 路由解析、远程配置客户端、标准 HTTP Transport 和简化 `bootstrap()`；
 - IndexedDB 运行时兼容探测及去生产化保险产品真实录制/回放 E2E；
@@ -176,6 +176,20 @@ SGS Tech 中面向 Java、DDD、数据库和 REST 的规则不适用于本次纯
 
 真实页面 E2E 采用去生产化的本地保险产品 fixture：参考用户指定公开页面的移动端长页面、保障计划、价格、弹窗和投保交互，但移除第三方脚本、监控、Fingerprint、生产 Cookie、SSR 业务数据、外部接口和跳转。测试加载真实发布 UMD/Worker，经 Mock Config 使用测试 AppKey 解析本地 Mock Collector，并用实际产生的 rrweb 事件完成沙箱回放；测试进程拒绝全部非本地网络请求。
 
+### 3.14 无损录制块压缩
+
+| 方案 | 优点 | 缺点 | 结论 |
+| --- | --- | --- | --- |
+| 每个 rrweb event 单独 pack | 可逐事件编码 | 压缩头和小块开销高，跨事件重复内容无法共享字典 | 不作为主存储协议 |
+| 对完整 RecordingBatch 无损 gzip | 重复 DOM/CSS/字段名压缩率高，批次仍可独立重试和校验 | 需要版本协商、解压上限和 Worker 隔离 | **采用** |
+| 删除事件、降低输入采样或减少快照 | 数据量最小 | 破坏销售可回溯完整性，可能只剩最终结果 | 禁止 |
+
+**决策 D-14：** SDK 对规范化 RecordingBatch 使用版本化二进制 envelope。v1 支持 `identity` 与 `gzip`；`contentHash` 始终基于未压缩的规范化批次哈希输入，codec 或压缩实现变化不得改变幂等语义。payload 使用 `Uint8Array`/`Blob`，禁止 Base64；小批次、压缩不可用或压缩无收益时显式降级为 `identity`，不得删除事件换取体积下降。
+
+解码必须先校验 codec/version、声明大小和最大解压边界，再校验解压后的批次哈希。未知版本、损坏流、大小不一致、解压超限和哈希不一致均 fail closed。压缩算法执行位置、IndexedDB 二进制迁移、HTTP 协商与本地回放验证分别由 T25-T28 落地；生产服务端重分段和 zstd 对象存储属于后续 Change。
+
+契约字段固定为 `format`、`codec`、`codecVersion`、`uncompressedBytes`、`compressedBytes`、`contentHash` 和二进制 `payload`。性能风险由 Worker 优先和最小压缩阈值缓解；安全风险由 gzip trailer、最大解压体积、CRC 与内容哈希的分层校验缓解；回滚时配置中心可只协商 `identity`，历史 gzip 数据继续由 v1 decoder 读取，不允许通过删除旧 codec 支持完成升级。
+
 ## 4. 总体架构
 
 ```mermaid
@@ -284,7 +298,7 @@ export type SDKResult<T = void> =
   | { ok: false; error: { code: SDKErrorCode; message: string } };
 ```
 
-`message` 只包含诊断描述，不包含页面内容、用户输入、userId、journeyId 或事件 payload。未知内部异常统一映射到稳定错误码，并仅在 `getDebugInfo()` 中保存脱敏摘要。
+`message` 只包含诊断描述，不包含页面内容、用户输入、userId、traceId 或事件 payload。未知内部异常统一映射到稳定错误码，并仅在 `getDebugInfo()` 中保存脱敏摘要。
 
 ### 5.3 初始化配置
 
@@ -351,11 +365,11 @@ export interface ConsentEvidence {
 
 export interface StartContext {
   userId?: string;
-  journeyId?: string;
 }
 
 export interface RecordingContext {
   identityType: 'host' | 'anonymous';
+  traceId: string;
   sessionId: string;
   recordingId: string;
   segmentId: string;
@@ -386,6 +400,7 @@ export interface DataInsightsClient {
 - `bootstrap` 先解析并校验 AppKey 远程配置，再建立标准 Transport 和授权入口监听；配置失败时保持零采集并返回稳定错误；
 - `init`、`grant`、`identify`、`clearIdentity`、`addCustomEvent` 为同步 Result；
 - `start` 必须先验证 IndexedDB、恢复 journal/outbox 并建立 dispatcher，因此返回 Promise；持久化能力未就绪时不得启动 rrweb；
+- `start` 不接收 `traceId`、`journeyId` 或 `journeyType`；SDK 自动创建或恢复当前 `traceId`；
 - `stop`、`revoke`、`flush`、`destroy` 因涉及持久化提交或 Transport drain，返回 Promise；
 - `stop` 保留已授权和可再次启动的 SDK；`revoke` 停止录制并清除可恢复授权；`destroy` 终止实例且不可恢复；
 - `start` 始终启动录制，不做 Session 抽样；
@@ -460,13 +475,17 @@ Runtime 失败不会自动重新启动录制。进入 Degraded 后先停止 reco
 | --- | --- | --- | --- |
 | `userId` | 嵌入方 | 嵌入方定义 | 业务用户关联，不由 SDK 验真 |
 | anonymous ID | SDK CSPRNG | 同 appKey 的第一方本地身份，直至 clearIdentity | host ID 缺失时兜底 |
-| `journeyId` | 嵌入方 | 一次投保流程 | 关联多个 Session |
+| `traceId` | SDK UUIDv4 | 一次未结束的连续录制 | 跨刷新/页面的原始关联键 |
 | `sessionId` | SDK UUIDv4 | 连续操作过程 | Session 边界 |
 | `recordingId` | SDK UUIDv4 | 每次 recorder 启动 | 录制与序列边界 |
 | `segmentId` | SDK UUIDv4 | 30 分钟或恢复快照边界 | 技术分段 |
 | `batchId` | SDK UUIDv4 | 一个不可变批次 | Transport 重试幂等键 |
 
 UUID 使用 `crypto.randomUUID()`；不可用时基于 `crypto.getRandomValues()` 生成 RFC 4122 v4，不允许使用 `Math.random()`。所有机器时间使用 Unix epoch 毫秒；对外文档时间和 `createdAt` 使用 UTC ISO-8601。
+
+`traceId` 与业务类型无关，不编码保险、投保或其他行业语义。SDK 在无可恢复 Trace 时自动生成；同标签页手动暂停后继续、同源页面刷新恢复和 30 分钟 Segment 切换均保持不变。`completed`、`cancelled`、`logout`、`auth-expired`、`consent-revoked` 或 `idle-timeout` 结束 Trace；之后再次启动生成新值。新标签页在 claim 冲突或无法可靠协调时生成新 Trace。跨域页面无法共享 sessionStorage，不在本切片的自动继承范围内。
+
+`journeyType`、业务 Journey ID 和业务阶段不属于 SDK 启动契约。后续服务端可依据 `traceId`、`userId`、`appKey`、页面与业务事件对 Trace 进行归并、拆分和分类，但不回写或改变原始 `traceId`。
 
 ### 7.2 存储命名空间
 
@@ -512,7 +531,7 @@ export type StopReason =
   | 'recorder-error';
 ```
 
-页面刷新从 sessionStorage 恢复未超时 Session 和授权证据；恢复后创建新的 recordingId，并先产生全量快照。Session 保持不变，旧、新 Recording 通过 sessionId 关联。该规则避免跨页面时重复使用 recorder 内部状态。
+页面刷新从 sessionStorage 恢复未超时 Trace、Session 和授权证据；恢复后创建新的 recordingId，并先产生全量快照。Trace 和 Session 保持不变，旧、新 Recording 通过 traceId/sessionId 关联。该规则避免跨页面时重复使用 recorder 内部状态。
 
 ## 8. rrweb Adapter 与隐私边界
 
@@ -529,7 +548,7 @@ record({
   ignoreSelector: customerIgnoreSelector,
   sampling: {
     mousemove: false,
-    scroll: 150,
+    scroll: 50,
     input: 'last',
     media: 800,
   },
@@ -542,6 +561,8 @@ record({
 ```
 
 强制规则在合并客户配置后最后应用，因此客户不能将 `password` 改为 false、开启 Canvas/WebGL 或启用跨域 iframe。Session 级 sampling 不存在；上述 `sampling` 仅是事件量节流。
+
+本地核验播放器默认 `speed: 1`、`skipInactive: false`，速度列表为 `0.75x/1x/2x/4x/8x`。0.75x 只是人工审阅选项，不改写事件时间戳，不取代 1x 的真实时间语义。本期不引入滚动视觉插值，避免在核验视图中合成未录制位置。
 
 ### 8.2 必选屏蔽规则
 
@@ -577,7 +598,7 @@ export interface RecordingBatchV1 {
     action: 'start-insurance';
     grantedAt: string;
   };
-  journeyId?: string;
+  traceId: string;
   sessionId: string;
   recordingId: string;
   segmentId: string;
@@ -595,6 +616,7 @@ export interface RecordingBatchV1 {
 契约规则：
 
 - `appKey` 隔离不同客户应用实例；H5 与 PC Web 不得复用同一 `appKey`；
+- `traceId` 由 SDK 产生并在 Trace 生命周期内保持稳定，客户输入不能覆盖；
 - 批次不重复携带 `platform`、`tenantId` 或 `environment`；后续服务端以 `appKey` 的应用配置补充这些权威维度；
 - `sequenceStart` 和 `sequenceEnd` 均为包含端点，且 `events.length === sequenceEnd - sequenceStart + 1`；
 - 同一 recordingId 内 sequence 严格递增；新 Recording 从 1 开始；
@@ -778,7 +800,7 @@ Worker 作为独立构建资源发布。Script Tag 从自身固定版本 URL 推
 
 ### 13.2 DebugInfo
 
-`getDebugInfo()` 和 `onDeliveryStateChange` 只返回：SDK/rrweb 版本、状态、consent 状态、是否使用 host identity、ID 的短哈希或尾部片段、journal/outbox 计数与估算字节数、容量等级、持久存储授权状态、最近错误码、重试/对账计数、Worker 降级状态和资源计数。不得返回用户输入、DOM、URL query、完整 appKey/userId/journeyId、事件 payload 或 batch 内容。
+`getDebugInfo()` 和 `onDeliveryStateChange` 只返回：SDK/rrweb 版本、状态、consent 状态、是否使用 host identity、ID 的短哈希或尾部片段、journal/outbox 计数与估算字节数、容量等级、持久存储授权状态、最近错误码、重试/对账计数、Worker 降级状态和资源计数。不得返回用户输入、DOM、URL query、完整 appKey/userId/traceId、事件 payload 或 batch 内容。
 
 默认 console 日志关闭；`debug=true` 时输出限频、脱敏的 `console.warn`。Diagnostics 只在内存中保存最近 20 条错误摘要，不实现任何网络遥测或上报。
 
@@ -837,7 +859,7 @@ Worker 作为独立构建资源发布。Script Tag 从自身固定版本 URL 推
 - `sampleRate` 被拒绝，授权投保 100% 创建 Recording；
 - 密码、hidden token、客户 block/mask 和自定义事件敏感键不泄露；
 - host userId、anonymous ID、clearIdentity 和授权前不读写身份；
-- 刷新延续 Session、新标签页旋转 Session、journeyId 关联；
+- 刷新延续 Trace/Session、新标签页旋转 Trace/Session、客户不能覆盖 traceId；
 - 空闲超时、全部 StopReason、30 分钟 segment 和恢复全量快照；
 - batch sequence、稳定 batchId、单通道顺序、有限重试和容量停止；
 - 1 秒/20 事件持久化窗口、journal→outbox 原子迁移、匹配持久化回执后删除、断网/刷新/重启恢复、跨标签页 lease 接管；
@@ -930,7 +952,7 @@ DataInsights 只导入 rrweb package export 暴露的入口。禁止从 `package
 ## 21. 设计依据
 
 - `openspec/changes/di-1001/proposal.md`；
-- `openspec/changes/di-1001/prd/` v1.8；
+- `openspec/changes/di-1001/prd/` v1.10；
 - 用户在 Design 澄清中确认：所有已授权投保 Journey 强制 100% 录制；
 - 用户在 Design 澄清中确认：同一客户的不同产品平台（如 H5、PC）必须独立管理；
 - 用户在 Design 澄清中确认：可靠性不能只依赖重试，采用方案 A 的 1 秒/20 事件 IndexedDB 持久化窗口；
@@ -947,8 +969,22 @@ DataInsights 只导入 rrweb package export 暴露的入口。禁止从 `package
 
 | 日期 | 版本 | 变更内容 | 变更人 |
 | --- | --- | --- | --- |
+| 2026-10-27 | v1.7 | 滚动采样调整为 50ms，本地播放器增加 0.75x 核验速度，默认 1x 与原始时间戳不变 | Codex |
+| 2026-10-27 | v1.6 | 增加 SDK 自动 Trace 标识、刷新恢复与终止轮换边界 | Codex |
+| 2026-10-27 | v1.5 | 增加版本化无损录制块协议、gzip/identity 选择、二进制 payload、解压限界、哈希与回滚设计 | Codex |
 | 2026-10-26 | v1.4 | 增加 AppKey 区域路由、远程配置、无 endpoint 的 bootstrap、IndexedDB 运行时兼容门禁及本地保险页面真实录制/回放 E2E 设计 | Codex |
 | 2026-10-26 | v1.3 | 增加分层上送质量、内容哈希、持久化回执、sequence 对账、定向重传和容量分级设计 | Codex |
 | 2026-10-25 | v1.2 | 增加方案 A 的 IndexedDB journal/durable outbox、恢复、容量和跨标签页投递设计，并将 start 改为异步持久化门控 | Codex |
 | 2026-10-25 | v1.1 | 增加应用级 `appKey` 隔离；平台归属由 appKey 映射且 SDK 不重复接收 platform；明确浏览器禁止持有长期 `appSecret/securityKey` | Codex |
 | 2026-10-25 | v1.0 | 基于 DI-1001 Proposal 与 rrweb 2.2.0 源码形成首版技术设计 | Codex |
+
+
+### 2026-10-30 增量：Canvas 2D / WebGL 画面采样
+
+用户确认两类画布均纳入范围。本节替代前文仅支持外围 DOM 的限制；保留原生 `recordCanvas:false`，通过 `src/recorder/canvas-capture.ts` 扩展，不侵入 rrweb 核心。自定义事件 `datainsights.canvas-frame.v1` 保存节点 id、宽高、context 和内联 WebP/PNG；全量快照携带 `datainsightsCanvasFrames`，支持检查点跳转。
+
+默认 200ms（5fps）采样，静态帧去重，最多8个当前画布、单画布200万像素、单帧URL最多350000字符。沿用宿主授权启动与暂停/停止生命周期，屏蔽区域不采集；stop 清理计时器与 WebGL 钩子。WebGL 在绘制后微任务读取，不修改 preserveDrawingBuffer，也不清除宿主缓冲区。图像随现有事件批次压缩、持久化与重试，不增加独立上传通道。
+
+配套浏览器回放和视频渲染校验图像头部尺寸与协议，仅显示受限位图，保持 iframe 禁止脚本及原生不安全 Canvas 命令关闭。视频标记 CANVAS_SAMPLED。旧录制没有采集到的像素不可补回。跨域污染画布、OffscreenCanvas、跨域 iframe 内画布和超过预算的画布不在本轮支持范围；高频 GPU 动画不承诺逐帧无损，移动设备真实性能和兼容性仍需专门实机验收。
+
+验证：SDK隐私/生命周期13项通过；后端 replay-client + video-renderer 共63项通过，新增真实 Chromium 采集2D/WebGL、屏蔽画布、恢复钩子、检查点跳转与解码MP4像素对照。不能将2D backing buffer读数当成最终可见性证据，必须检查实际截图/视频。

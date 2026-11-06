@@ -1,4 +1,5 @@
 import type { eventWithTime } from '@rrweb/types';
+import { captureCanvases } from './canvas-capture';
 
 import { buildPrivacyPolicy } from '../privacy/privacy-policy';
 import type { DataInsightsOptions } from '../public/types';
@@ -43,6 +44,7 @@ type RecordLoader = () => Promise<{
     (options: RecorderOptions): (() => void) | undefined;
     addCustomEvent(name: string, data: unknown): void;
     takeFullSnapshot(isCheckout?: boolean): void;
+    mirror?: { getId(node: Node): number };
   };
 }>;
 
@@ -55,7 +57,7 @@ export function buildRecorderOptions(
     ...privacy,
     sampling: {
       mousemove: false,
-      scroll: 150,
+      scroll: 50,
       input: 'all',
       media: 800,
     },
@@ -78,9 +80,13 @@ export async function startRrwebRecorder(
   input: RecorderAdapterInput,
   loadRecord: RecordLoader = () => import('@rrweb/record'),
 ): Promise<RecorderHandle> {
+  let canvases: ReturnType<typeof captureCanvases> | undefined;
   try {
     const { record } = await loadRecord();
-    const stop = record(buildRecorderOptions(input));
+    const privacy = buildPrivacyPolicy(input.privacy);
+    canvases = captureCanvases(record.mirror, input.emit, ['.rr-sensitive', privacy.blockSelector, privacy.maskTextSelector, privacy.ignoreSelector].filter(Boolean).join(','));
+    const stop = record(buildRecorderOptions({ ...input, emit: event => { canvases?.snapshot(event); input.emit(event); } }));
+    if (typeof stop !== 'function') canvases.stop();
     return {
       started: typeof stop === 'function',
       addCustomEvent(name, data) {
@@ -99,6 +105,7 @@ export async function startRrwebRecorder(
       },
       stop() {
         try {
+          canvases?.stop();
           stop?.();
         } catch {
           input.onError?.();
@@ -106,6 +113,7 @@ export async function startRrwebRecorder(
       },
     };
   } catch {
+    canvases?.stop();
     input.onError?.();
     return {
       started: false,

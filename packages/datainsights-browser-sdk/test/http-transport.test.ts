@@ -1,8 +1,15 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ResolvedApplicationConfig } from '../src/public/types';
 import type { RecordingBatchV1 } from '../src/pipeline/batcher';
-import { createHttpTransport } from '../src/transport/http';
+import { createHttpTransport as createBaseHttpTransport } from '../src/transport/http';
+const createHttpTransport = (
+  ...args: Parameters<typeof createBaseHttpTransport>
+) =>
+  createBaseHttpTransport(args[0], args[1], {
+    ...args[2],
+    capabilityDiscovery: false,
+  });
 
 const config: ResolvedApplicationConfig = {
   appKey: 'di_t_cn1_K7J9M2X4',
@@ -48,6 +55,15 @@ function accepted(overrides: Record<string, unknown> = {}) {
   };
 }
 
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-10-26T11:00:00Z'));
+});
+afterEach(() => {
+  vi.clearAllTimers();
+  vi.useRealTimers();
+});
+
 describe('resolved HTTP Transport', () => {
   it('fails over to a configured backup and returns an exact persisted receipt', async () => {
     const fetchImpl = vi
@@ -84,10 +100,11 @@ describe('resolved HTTP Transport', () => {
   it('never accepts HTTP success with a mismatched receipt', async () => {
     const transport = createHttpTransport(
       config,
-      vi.fn(async () =>
-        new Response(JSON.stringify(accepted({ batchId: 'other-batch' })), {
-          status: 200,
-        }),
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify(accepted({ batchId: 'other-batch' })), {
+            status: 200,
+          }),
       ) as typeof fetch,
     );
 
@@ -98,16 +115,17 @@ describe('resolved HTTP Transport', () => {
   });
 
   it('validates reconciliation data from a configured collector', async () => {
-    const fetchImpl = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          recordingId: batch.recordingId,
-          contiguousSequenceEnd: 2,
-          missingRanges: [],
-          checkedAt: '2026-10-26T11:30:00.000Z',
-        }),
-        { status: 200 },
-      ),
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            recordingId: batch.recordingId,
+            contiguousSequenceEnd: 2,
+            missingRanges: [],
+            checkedAt: '2026-10-26T11:30:00.000Z',
+          }),
+          { status: 200 },
+        ),
     );
     const transport = createHttpTransport(config, fetchImpl as typeof fetch);
 
@@ -126,10 +144,11 @@ describe('resolved HTTP Transport', () => {
   });
 
   it('rejects malformed reconciliation data and sends nothing after destroy', async () => {
-    const fetchImpl = vi.fn(async () =>
-      new Response(JSON.stringify({ recordingId: batch.recordingId }), {
-        status: 200,
-      }),
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ recordingId: batch.recordingId }), {
+          status: 200,
+        }),
     );
     const transport = createHttpTransport(config, fetchImpl as typeof fetch);
 

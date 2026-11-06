@@ -1,3 +1,4 @@
+import { CloseStore, type CloseIntent } from '../delivery/close-store';
 import {
   RecorderDatabase,
   requestResult,
@@ -22,6 +23,7 @@ export interface OutboxBatchDraft {
 export interface OutboxRecord extends OutboxBatchDraft {
   key: string;
   appKey: string;
+  deliveryBlocked?: string;
 }
 
 export class IndexedDbOutbox {
@@ -41,13 +43,15 @@ export class IndexedDbOutbox {
   async enqueueManyFromJournal(
     batches: readonly OutboxBatchDraft[],
     journalKeys: readonly string[],
+    close?: CloseIntent,
   ): Promise<boolean> {
     try {
       const transaction = this.database.raw.transaction(
-        [STORES.journal, STORES.outbox],
+        [STORES.journal, STORES.outbox, STORES.metadata],
         'readwrite',
       );
       const completed = transactionDone(transaction);
+      void completed.catch(() => undefined);
       const journalStore = transaction.objectStore(STORES.journal);
       const outboxStore = transaction.objectStore(STORES.outbox);
       const [allJournal, allOutbox] = await Promise.all([
@@ -88,6 +92,14 @@ export class IndexedDbOutbox {
         outboxStore.put(record);
       }
       for (const key of journalKeys) journalStore.delete(key);
+      try {
+        await CloseStore.advance(transaction, this.appKey, batches);
+        if (close) await CloseStore.seal(transaction, this.appKey, close);
+      } catch {
+        transaction.abort();
+        await completed.catch(() => undefined);
+        return false;
+      }
       await completed;
       return true;
     } catch {
@@ -115,6 +127,18 @@ export class IndexedDbOutbox {
         left.sequenceStart - right.sequenceStart,
     );
     return records.map((record) => Object.freeze(record));
+  }
+
+  async block(batchId: string, reason: string): Promise<void> {
+    const tx = this.database.raw.transaction(STORES.outbox, 'readwrite');
+    const done = transactionDone(tx);
+    const store = tx.objectStore(STORES.outbox);
+    const record = await requestResult(store.get(`${this.appKey}:${batchId}`));
+    if (record) {
+      record.deliveryBlocked = reason;
+      store.put(record);
+    }
+    await done;
   }
 
   async totalBytes(): Promise<number> {

@@ -2,19 +2,19 @@
 
 ## 1. 支持矩阵
 
-| 场景 | 验收结果 |
-| --- | --- |
-| 普通 HTML 页面 | Script Tag 初始化并生成可回放事件 |
-| React SPA | 路由和 DOM 更新可录制，销毁无残留 |
-| Vue SPA | 路由和 DOM 更新可录制，销毁无残留 |
-| Angular SPA | 路由和 DOM 更新可录制，销毁无残留 |
-| turbolinks/pjax | 生命周期适配策略可验证 |
-| Shadow DOM | 以所选 rrweb 基线能力为准并明确支持边界 |
-| 跨域 iframe | 父页面不读取内容；iframe 独立接入可录制 |
-| Service Worker | 不修改或破坏客户 Service Worker |
-| CSP | 固定版本脚本在声明的 CSP 配置下加载 |
-| 禁用 JavaScript | SDK 不工作，文档明确说明 |
-| 中国大陆网络 | 只验证 SDK 不绑定单一域名；CDN 部署不属于本期 |
+| 场景            | 验收结果                                      |
+| --------------- | --------------------------------------------- |
+| 普通 HTML 页面  | Script Tag 初始化并生成可回放事件             |
+| React SPA       | 路由和 DOM 更新可录制，销毁无残留             |
+| Vue SPA         | 路由和 DOM 更新可录制，销毁无残留             |
+| Angular SPA     | 路由和 DOM 更新可录制，销毁无残留             |
+| turbolinks/pjax | 生命周期适配策略可验证                        |
+| Shadow DOM      | 以所选 rrweb 基线能力为准并明确支持边界       |
+| 跨域 iframe     | 父页面不读取内容；iframe 独立接入可录制       |
+| Service Worker  | 不修改或破坏客户 Service Worker               |
+| CSP             | 固定版本脚本在声明的 CSP 配置下加载           |
+| 禁用 JavaScript | SDK 不工作，文档明确说明                      |
+| 中国大陆网络    | 只验证 SDK 不绑定单一域名；CDN 部署不属于本期 |
 
 ## 2. 浏览器范围
 
@@ -35,7 +35,8 @@
 - [ ] `start/stop/destroy` 多次调用符合幂等规则；
 - [ ] 同标签页刷新和 SPA 路由切换延续 Session；新标签页使用新的 `sessionId`；
 - [ ] 投保完成、取消、退出登录、撤回授权、登录会话失效或连续 30 分钟无有效操作后结束 Session；
-- [ ] 同一 `journeyId` 能关联因新标签页或空闲超时产生的多个 Session；
+- [ ] SDK 自动生成 `traceId`，客户无法覆盖；同标签页和同源刷新恢复延续，新标签页、明确结束或空闲超时后轮换；
+- [ ] 每个批次都携带 `traceId`；客户无需提供 `journeyType` 或业务 Journey ID；
 - [ ] 连续录制每 30 分钟形成新 segment 和全量快照，但不改变 `sessionId`；
 - [ ] 自定义事件保持调用时间并可在时间轴定位；
 - [ ] batchId 和 sequence 可识别重复与缺口；
@@ -53,6 +54,7 @@
 - [ ] 推荐 `bootstrap()` 示例不包含 endpoint、platform、tenantId 或长期 secret；AppKey 路由失败时不启动录制。
 - [ ] IndexedDB open/write/read/delete 门禁失败时返回 `PERSISTENCE_UNAVAILABLE`，且 rrweb 未启动。
 - [ ] 本地保险 E2E 在点击前无录制，点击后完成普通字段录制、密码排除、精确回执清理和真实 rrweb sandbox 回放。
+- [x] 本地保险 E2E 覆盖五份须知逐项打开、滚动到底解锁、未读关闭不确认、非固定顺序幂等确认、全部完成后提交门禁解除，以及最终状态真实回放。
 - [ ] 本地保险 E2E 拒绝所有非 `127.0.0.1`/`localhost` HTTP(S) 请求。
 
 ## 4. 资源与性能验收
@@ -81,4 +83,3 @@
 - ClickHouse 分析、漏斗、留存和路径；
 - 正式管理后台、视频导出和实时回放服务；
 - yudao-cloud 的任何代码或接口变更。
-

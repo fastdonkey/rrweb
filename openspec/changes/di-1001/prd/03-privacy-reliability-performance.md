@@ -24,7 +24,7 @@
   blockClass: 'rr-sensitive',
   sampling: {
     mousemove: false,
-    scroll: 150,
+    scroll: 50,
     input: 'last',
     media: 800,
   },
@@ -35,6 +35,8 @@
 ```
 
 该候选配置反映已确认的默认输入策略：密码始终屏蔽，其他业务输入默认录制。SDK 仍需支持客户通过 block、mask 和 ignore 选择器增加屏蔽范围；认证令牌、Cookie、请求正文和隐藏安全字段不属于允许录制的业务输入。
+
+回放默认使用 1x 并保持 `skipInactive=false`，不修改原始事件时间戳。播放器可额外提供明确标注的 0.75x 人工核验速度，但不得将 0.75x 标识为 1x。
 
 ## 3. 故障隔离
 
@@ -85,7 +87,7 @@
 - 30 分钟空闲边界用于录制 Session 划分，不替代嵌入方自身的登录安全超时；
 - 嵌入方登录会话先失效时，录制必须同步停止；
 - 浏览器关闭事件不可靠，SDK 只能 best effort 结束与 flush，不能将 `beforeunload` 作为唯一的 Session 终止依据；
-- 新 Session 必须使用新的 `sessionId` 和 `recordingId`，但可通过相同 `journeyId` 关联至同一投保流程；
+- 新 Session 必须使用新的 `sessionId`、`recordingId` 和 `traceId`；跨 Trace 的业务归并由 DataInsights 后续数据清洗处理；
 - 浏览器指纹不得用于判断两个 Session 是否属于同一用户或同一投保流程。
 
 ## 7. 安全测试

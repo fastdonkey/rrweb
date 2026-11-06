@@ -31,14 +31,14 @@ DataInsights 不应把客户直接绑定到 `packages/rrweb`、`packages/record`
 
 ## 3. 生命周期
 
-| 操作 | 要求 |
-| --- | --- |
-| `init` | 仅校验配置并创建不采集数据的单例状态，不得在授权前注册采集器或读取用于采集的页面数据 |
-| `start` | 仅在取得明确授权且持久化队列可用后启动 rrweb；不进行 Session 级采样 |
-| `stop` | 停止当前录制但保留可再次启动的 SDK 状态 |
-| `destroy` | 停止录制并释放监听器、Worker、定时器、队列和全局引用 |
-| `consent.grant` | 由嵌入方在用户点击“开始投保”后调用，记录授权状态并允许启动；授权前产生的页面状态和行为不得追溯采集 |
-| `consent.revoke` | 立即停止后续录制；历史数据处置不属于本期 |
+| 操作             | 要求                                                                                               |
+| ---------------- | -------------------------------------------------------------------------------------------------- |
+| `init`           | 仅校验配置并创建不采集数据的单例状态，不得在授权前注册采集器或读取用于采集的页面数据               |
+| `start`          | 仅在取得明确授权且持久化队列可用后启动 rrweb；不进行 Session 级采样                                |
+| `stop`           | 停止当前录制但保留可再次启动的 SDK 状态                                                            |
+| `destroy`        | 停止录制并释放监听器、Worker、定时器、队列和全局引用                                               |
+| `consent.grant`  | 由嵌入方在用户点击“开始投保”后调用，记录授权状态并允许启动；授权前产生的页面状态和行为不得追溯采集 |
+| `consent.revoke` | 立即停止后续录制；历史数据处置不属于本期                                                           |
 
 `destroy()` 不得删除宿主 Cookie、localStorage 或业务 IndexedDB，也不得删除尚未获得 `accepted` 的 SDK durable outbox；它只关闭 SDK 自有数据库连接和运行资源。
 
@@ -55,14 +55,16 @@ DataInsights 不应把客户直接绑定到 `packages/rrweb`、`packages/record`
 - 长会话固定每 30 分钟分段，并保留 segment 信息；
 - 暂停后恢复录制时先生成全量快照。
 
-### 4.1 Session 与投保流程边界
+### 4.1 Trace 与 Session 边界
 
 - 用户点击“开始投保”并由嵌入方完成授权/启动调用后创建 Session；
+- SDK 自动生成 UUIDv4 `traceId`；启动参数不接收 `traceId`、`journeyId` 或 `journeyType`；
 - 同一标签页内的 SPA 路由切换和页面刷新延续当前 Session；刷新恢复后必须先生成可独立回放的全量快照；
 - 新标签页创建新的 Session，不与原标签页共用 `sessionId`；
 - 投保完成、取消投保、退出登录、撤回授权或嵌入方登录会话失效时，嵌入方应显式结束当前 Session；
 - 连续 30 分钟没有有效用户操作时结束当前 Session；用户恢复操作并重新满足启动条件后创建新 Session；
-- 嵌入方可提供 `journeyId`，用于关联同一次投保流程中因新标签页、空闲超时等原因产生的多个 Session；
+- 同标签页暂停后继续和同源刷新恢复保持 `traceId`；新标签页、明确结束或空闲超时后生成新 `traceId`；
+- 业务 Journey ID、行业类型和业务阶段由 DataInsights 后续数据清洗产生，客户前端不填写；
 - 连续录制每 30 分钟切换 `segmentId` 并生成恢复回放所需的全量快照；分段属于存储和回放边界，不代表 Session 或投保流程结束。
 
 ## 5. 自定义事件
@@ -96,8 +98,8 @@ interface RecordingBatch {
   sdkVersion: string;
   rrwebVersion: string;
   appKey: string;
+  traceId: string;
   recordingId: string;
-  journeyId?: string;
   sessionId: string;
   segmentId: string;
   batchId: string;
@@ -149,6 +151,8 @@ Memory、Download、Mock HTTP Transport 均标记为 `test-only`，只验证 SDK
 
 ## 10. 本地保险录制与回放验证
 
+本地保险 Demo 需要覆盖保险行业常见的多文件阅读确认流程：固定展示投保须知、保险条款、健康告知、免责条款和个人信息处理授权书；每份文件必须打开并滚动到底后才能确认，全部确认前禁止提交。确认过程由 rrweb 原生记录，全部完成时可以增加不含条款正文和用户数据的业务自定义事件。该流程只用于验证通用 SDK 对复杂行业页面的录制能力，不把 DataInsights SDK 核心限定为保险专用。
+
 - 提供移动端长页面、计划切换、保障弹窗、投保表单和提交交互；
 - 页面与服务只绑定 `127.0.0.1`，不包含生产脚本、接口、Cookie、Fingerprint、监控或外链；
 - 真实 UMD/Worker 通过测试 AppKey 解析本地 Mock Config/Collector；
@@ -157,3 +161,13 @@ Memory、Download、Mock HTTP Transport 均标记为 `test-only`，只验证 SDK
 - Replay iframe 使用精确 `sandbox="allow-same-origin"`，不得允许脚本执行；
 - E2E 中任何非本地 HTTP(S) 请求均视为失败。
 
+
+### 2026-10-30 增量：Canvas 2D / WebGL 画面采样
+
+用户确认两类画布均纳入范围。本节替代前文仅支持外围 DOM 的限制；保留原生 `recordCanvas:false`，通过 `src/recorder/canvas-capture.ts` 扩展，不侵入 rrweb 核心。自定义事件 `datainsights.canvas-frame.v1` 保存节点 id、宽高、context 和内联 WebP/PNG；全量快照携带 `datainsightsCanvasFrames`，支持检查点跳转。
+
+默认 200ms（5fps）采样，静态帧去重，最多8个当前画布、单画布200万像素、单帧URL最多350000字符。沿用宿主授权启动与暂停/停止生命周期，屏蔽区域不采集；stop 清理计时器与 WebGL 钩子。WebGL 在绘制后微任务读取，不修改 preserveDrawingBuffer，也不清除宿主缓冲区。图像随现有事件批次压缩、持久化与重试，不增加独立上传通道。
+
+配套浏览器回放和视频渲染校验图像头部尺寸与协议，仅显示受限位图，保持 iframe 禁止脚本及原生不安全 Canvas 命令关闭。视频标记 CANVAS_SAMPLED。旧录制没有采集到的像素不可补回。跨域污染画布、OffscreenCanvas、跨域 iframe 内画布和超过预算的画布不在本轮支持范围；高频 GPU 动画不承诺逐帧无损，移动设备真实性能和兼容性仍需专门实机验收。
+
+验证：SDK隐私/生命周期13项通过；后端 replay-client + video-renderer 共63项通过，新增真实 Chromium 采集2D/WebGL、屏蔽画布、恢复钩子、检查点跳转与解码MP4像素对照。不能将2D backing buffer读数当成最终可见性证据，必须检查实际截图/视频。

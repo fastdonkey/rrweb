@@ -1,3 +1,9 @@
+import type {
+  Capabilities,
+  PendingBatch,
+  RecoveryResult,
+} from './recovery-protocol';
+import type { CloseDeclaration } from '../delivery/close-store';
 import type { RecordingBatchV1 } from '../pipeline/batcher';
 
 export interface PersistedReceipt {
@@ -43,7 +49,21 @@ export interface TransportContext {
     | 'manual';
 }
 
+export type CloseResult =
+  | { status: 'accepted'; closeId: string }
+  | { status: 'retryable' | 'rejected'; retryAfterMs?: number };
 interface BaseTransport {
+  capabilities?(): Promise<Readonly<Capabilities>>;
+  reconcileBatches?(
+    recordingId: string,
+    traceId: string,
+    pending: readonly PendingBatch[],
+    context: { readonly signal: AbortSignal },
+  ): Promise<RecoveryResult>;
+  sendClose?(
+    declaration: CloseDeclaration,
+    context: { readonly signal: AbortSignal },
+  ): Promise<CloseResult>;
   readonly name: string;
   flush?(context: { readonly signal: AbortSignal }): Promise<void>;
   destroy?(): Promise<void>;

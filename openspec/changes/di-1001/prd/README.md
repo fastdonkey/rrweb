@@ -3,13 +3,13 @@
 ## 文档状态
 
 - 状态：Confirmed
-- 版本：v1.8
-- 日期：2026-10-26
+- 版本：v1.10
+- 日期：2026-10-27
 - Jira：DI-1001
 - 实现分支：`futrue-v1`
 - 确认人：用户
 - 原始确认时间：2026-10-25T22:33:38+08:00
-- 最近确认日期：2026-10-26
+- 最近确认日期：2026-10-27
 
 ## 目标
 
@@ -25,7 +25,7 @@
 
 ## 决策状态
 
-Proposal 阶段的 Blocking 决策已经全部关闭。用户已明确确认 PRD v1.8，可作为唯一 `proposal.md` 的需求输入。
+Proposal 阶段的 Blocking 决策已经全部关闭。用户已明确确认 PRD v1.10，可作为唯一 `proposal.md` 的需求输入。
 
 已确认：
 
@@ -33,7 +33,8 @@ Proposal 阶段的 Blocking 决策已经全部关闭。用户已明确确认 PRD
 - 用户授权前完全不采集任何数据，包括 Replay、性能指标和身份数据。
 - 授权告知与“开始投保”入口由嵌入方实现，SDK 仅在嵌入方显式通知后启动录制；
 - 用户标识可由嵌入方提供，未提供时由 SDK 在授权后生成第一方随机 UUID；不使用 FingerprintJS。
-- Session 以“开始投保”启动，以显式业务结束、授权撤回、登录会话失效或连续 30 分钟无有效操作结束；同标签页刷新延续，新标签页新建；多个 Session 可通过 `journeyId` 关联同一投保流程；
+- SDK 自动生成 `traceId` 标识一次连续录制；同标签页暂停后继续与同源刷新恢复保持，新标签页、明确结束或连续 30 分钟空闲后新建；客户不提供 `journeyType` 或业务 Journey ID；
+- 滚动按 50ms 节流录制，mousemove 继续关闭；本地回放默认保持 1x 且不跳过空闲，额外提供明确标注的 0.75x 人工核验速度；
 - 连续录制每 30 分钟进行技术分段，但不因此结束 Session。
 - 源码目录为 `packages/datainsights-browser-sdk`，npm 包为 `@datainsights/browser-sdk`，浏览器全局对象为 `window.DataInsights`，并提供 ESM、类型声明和 Script Tag/CDN 构建。
 - 每个“客户 × 产品 × 平台 × 环境”使用独立公开 `appKey`；SDK 不重复接收 `platform`，也不接收长期 `appSecret/securityKey`。
@@ -48,7 +49,7 @@ Proposal 阶段的 Blocking 决策已经全部关闭。用户已明确确认 PRD
 
 - Google Analytics 与 PostHog 均采用 30 分钟无活动作为默认 Session 边界；
 - NIST 与 OWASP 要求会话具备空闲超时、整体边界和显式结束机制；其登录安全会话规则仅作为边界设计参考，不等同于录制 Session；
-- 保险投保录制采用业务流程关联优先：以 `journeyId` 关联同一次投保中的多个录制 Session。
+- `traceId` 仅表示客户端可观测的连续录制；行业类型、业务 Journey 与阶段由 DataInsights 后续根据原始数据清洗，不进入客户 SDK 接入契约。
 
 ## 来源
 
